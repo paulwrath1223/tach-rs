@@ -1,6 +1,6 @@
 //! This example shows how to use USB (Universal Serial Bus) in the RP2040 chip.
 //!
-//! This creates the possibility to send log::info/warn/error/debug! to USB serial port.
+//! This creates the possibility to send info/warn/error/debug! to USB serial port.
 
 #![no_std]
 #![no_main]
@@ -17,6 +17,7 @@ use embassy_rp::peripherals::{self, USB, PIO0};
 use embassy_rp::usb::Driver;
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
+use defmt::*;
 use embassy_sync::channel::Channel;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use crate::elm_uart::elm_uart_task;
@@ -55,14 +56,14 @@ assign_resources! { // I hate this macro shit
 }
 
 bind_interrupts!(struct Irqs {
-    USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<USB>;
+    // USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<USB>;
     UART0_IRQ => embassy_rp::uart::BufferedInterruptHandler<peripherals::UART0>;
 });
 
-#[embassy_executor::task]
-async fn logger_task(driver: Driver<'static, USB>) {
-    embassy_usb_logger::run!(1024, log::LevelFilter::Info, driver);
-}
+// #[embassy_executor::task]
+// async fn logger_task(driver: Driver<'static, USB>) {
+//     embassy_usb_logger::run!(1024, log::LevelFilter::Info, driver);
+// }
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -70,8 +71,8 @@ async fn main(spawner: Spawner) {
 
     let r = split_resources!(p);
     
-    let driver = Driver::new(p.USB, Irqs);
-    spawner.spawn(logger_task(driver)).unwrap();
+    // let driver = Driver::new(p.USB, Irqs);
+    // spawner.spawn(logger_task(driver)).unwrap();
     spawner.spawn(elm_uart_task(r.elm_uart)).unwrap();
 
     let receiver = INCOMING_EVENT_CHANNEL.receiver();
@@ -81,25 +82,25 @@ async fn main(spawner: Spawner) {
         let event = receiver.receive().await;
         match event{
             ToMainEvents::GaugeInitComplete => {
-                log::info!("Gauge initialized");
+                info!("Gauge initialized");
             }
             ToMainEvents::GaugeError(e) => {
-                log::info!("Gauge error: {:?}", e);
+                info!("Gauge error: {:?}", e);
             }
             ToMainEvents::LcdInitComplete => {
-                log::info!("LCD initialized");
+                info!("LCD initialized");
             }
             ToMainEvents::LcdError(e) => {
-                log::info!("LCD error: {:?}", e);
+                info!("LCD error: {:?}", e);
             }
             ToMainEvents::ElmInitComplete => {
-                log::info!("Elm initialized");
+                info!("Elm initialized");
             }
             ToMainEvents::ElmError(e) => {
-                log::info!("Elm error: {:?}", e);
+                info!("Elm error: {:?}", e);
             }
             ToMainEvents::ElmDataPoint(d) => {
-                log::info!("Elm data point: {:?}", d);
+                info!("Elm data point: {:?}", d);
             }
         }
     }

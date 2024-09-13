@@ -1,7 +1,7 @@
 use core::fmt::{Debug, Formatter};
 use thiserror_no_std::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, defmt::Format)]
 pub enum ToRustAGaugeError {
     #[error("Nondescript error")]
     NondescriptError(),
@@ -15,7 +15,7 @@ pub enum ToRustAGaugeError {
 }
 
 #[repr(u8)]
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub enum ToRustAGaugeErrorSeverity {
     CompleteFailure,
     LossOfSomeFunctionality,
@@ -35,6 +35,7 @@ impl ToRustAGaugeErrorWithSeverity {
     }
 }
 
+#[derive(defmt::Format)]
 pub struct ToRustAGaugeErrorWithSeverity {
     error: ToRustAGaugeError,
     severity: ToRustAGaugeErrorSeverity,

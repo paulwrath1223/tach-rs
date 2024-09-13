@@ -1,5 +1,6 @@
 use core::fmt::{Debug, Formatter};
 
+#[derive(defmt::Format)]
 pub struct DataPoint {
     pub rpm: Option<f64>,
     pub vbat: Option<f64>,
