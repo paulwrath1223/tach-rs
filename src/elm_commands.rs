@@ -1,7 +1,7 @@
 pub struct StaticCommand(&'static str);
 
 impl StaticCommand {
-    fn as_bytes<'a>(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
     }
 }

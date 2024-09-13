@@ -29,7 +29,7 @@ impl ToRustAGaugeErrorWithSeverity {
     where E: Into<ToRustAGaugeError> 
     {
         ToRustAGaugeErrorWithSeverity{
-            error: ToRustAGaugeError::from(error),
+            error: E::into(error),
             severity,
         }
     }
