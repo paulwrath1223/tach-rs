@@ -50,6 +50,7 @@ cortex-m = { version = "0.7.6" }
 
 log = "0.4.22"
 thiserror-no-std = "2.0.2"
+nb = "1.1.0"
 
 
 [profile.release]
