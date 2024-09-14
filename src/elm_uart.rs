@@ -160,7 +160,7 @@ async fn uart_write_read<'a>(uart: &mut BufferedUart<'a, UART0>,
     uart.blocking_write(message)?;
     uart.blocking_flush()?;
     defmt::info!("`uart_write_read` wrote: {:?}", message);
-    // embassy_time::block_for(Duration::from_millis(100));
+    embassy_time::block_for(Duration::from_millis(10));
     uart_read_until_char(uart, DELIMITER_U8, rx_buffer).await?;
     defmt::info!("`uart_write_read` read: {:?}", rx_buffer);
     Ok(())
