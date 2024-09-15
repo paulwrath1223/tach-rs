@@ -1,6 +1,4 @@
-//! This example shows how to use USB (Universal Serial Bus) in the RP2040 chip.
-//!
-//! This creates the possibility to send info/warn/error/debug! to USB serial port.
+
 
 #![no_std]
 #![no_main]
@@ -9,6 +7,7 @@ mod data_point;
 mod elm_commands;
 mod elm_uart;
 mod errors;
+mod display;
 
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
@@ -20,6 +19,7 @@ use {defmt_rtt as _, panic_probe as _};
 use defmt::*;
 use embassy_sync::channel::Channel;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use crate::display::display_task;
 use crate::elm_uart::elm_uart_task;
 
 pub static INCOMING_EVENT_CHANNEL: Channel<CriticalSectionRawMutex, ToMainEvents, 10> = Channel::new();
@@ -53,6 +53,16 @@ assign_resources! { // I hate this macro shit
         b1_pin: PIN_6,
         b2_pin: PIN_7,
     }
+    display: DisplayPins{
+        bl: PIN_13,
+        rst: PIN_15,
+        display_cs: PIN_9,
+        dcx: PIN_8,
+        miso: PIN_12,
+        mosi: PIN_11,
+        clk: PIN_10,
+        spi_resource: SPI1,
+    }
 }
 
 bind_interrupts!(struct Irqs {
@@ -73,7 +83,8 @@ async fn main(spawner: Spawner) {
     
     // let driver = Driver::new(p.USB, Irqs);
     // spawner.spawn(logger_task(driver)).unwrap();
-    spawner.spawn(elm_uart_task(r.elm_uart)).unwrap();
+    spawner.spawn(elm_uart_task(r.elm_uart)).expect("failed to spawn elm uart task");
+    spawner.spawn(display_task(r.display)).expect("failed to spawn display task");
 
     let receiver = INCOMING_EVENT_CHANNEL.receiver();
 
@@ -85,19 +96,19 @@ async fn main(spawner: Spawner) {
                 info!("Gauge initialized");
             }
             ToMainEvents::GaugeError(e) => {
-                info!("Gauge error: {:?}", e);
+                warn!("Gauge error: {:?}", e);
             }
             ToMainEvents::LcdInitComplete => {
                 info!("LCD initialized");
             }
             ToMainEvents::LcdError(e) => {
-                info!("LCD error: {:?}", e);
+                warn!("LCD error: {:?}", e);
             }
             ToMainEvents::ElmInitComplete => {
                 info!("Elm initialized");
             }
             ToMainEvents::ElmError(e) => {
-                info!("Elm error: {:?}", e);
+                warn!("Elm error: {:?}", e);
             }
             ToMainEvents::ElmDataPoint(d) => {
                 info!("Elm data point: {:?}", d);
