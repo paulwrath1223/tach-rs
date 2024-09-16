@@ -78,11 +78,11 @@ pub async fn elm_uart_task(r: ElmUart){
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::SET_CUSTOM_HEADERS.as_bytes(), &mut rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
-
+    
 
 }
 
-async fn result_unpacker<'a, T, E>(result: Result<T, E>, 
+async fn result_unpacker<'a, T, E>(result: Result<T, E>,
                          sender: Sender<'a, CriticalSectionRawMutex, ToMainEvents, 10>,
                          error_severity: ToRustAGaugeErrorSeverity
 ) -> Option<T> 
