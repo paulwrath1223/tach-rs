@@ -59,14 +59,14 @@ pub async fn display_task(r: DisplayPins) {
 
     // display interface abstraction from SPI and DC
     let di = display_interface_spi::SPIInterface::new(display_spi, dcx);
-    
+
     let display_orientation = Orientation::new().rotate(mipidsi::options::Rotation::Deg90);
 
     // create driver
     let mut display = mipidsi::Builder::new(mipidsi::models::ST7789, di)
         .reset_pin(rst)
         .display_size(170, 320)
-        .display_offset(32, 0)
+        .display_offset(35, 0)
         .invert_colors(ColorInversion::Inverted)
         .orientation(display_orientation)
         .init(&mut Delay)
@@ -74,7 +74,7 @@ pub async fn display_task(r: DisplayPins) {
 
 
     // initialize
-    
+
     info!("initialized display");
 
 
@@ -83,11 +83,11 @@ pub async fn display_task(r: DisplayPins) {
 
     let raw_image_data = ImageRawLE::new(include_bytes!("../display_assets/ferris.raw"), 86);
     let ferris = Image::new(&raw_image_data, Point::new(5, 40));
-    
+
     info!("initialized ferris");
 
     // Display the image
-    
+
 
     let style = MonoTextStyle::new(&FONT_10X20, Rgb565::GREEN);
     let text = text::Text::new(
@@ -99,23 +99,30 @@ pub async fn display_task(r: DisplayPins) {
     let mut ticker = Ticker::every(Duration::from_millis(50));
 
     let mut counter: u64 = 0;
-    let fill = PrimitiveStyle::with_fill(Rgb565::BLUE);
-    
-    let mut circle = embedded_graphics::primitives::Circle::new(
-        Point::new((counter % 320) as i32, 100), 15)
-        .into_styled(fill);
+    let fill_blue = PrimitiveStyle::with_fill(Rgb565::BLUE);
+
+    let mut circle_blue = embedded_graphics::primitives::Circle::new(
+        Point::new(0, 100), 15)
+        .into_styled(fill_blue);
+
+    let fill_black = PrimitiveStyle::with_fill(Rgb565::BLACK);
+
+    let mut circle_black = embedded_graphics::primitives::Circle::new(
+        Point::new(0, 100), 15)
+        .into_styled(fill_black);
 
     ferris.draw(&mut display).expect("drawing ferris failed");
     text.draw(&mut display).expect("text.draw failed");
-    
-    loop {
 
-        circle.draw(&mut display).expect("drawing circle failed");
-        circle.primitive.top_left.x = (counter%320) as i32;
+    loop {
+        circle_black.draw(&mut display).expect("drawing circle failed");
+        circle_black.primitive.top_left.x = ((counter.overflowing_sub(15).0)%320) as i32;
+        circle_blue.draw(&mut display).expect("drawing circle failed");
+        circle_blue.primitive.top_left.x = (counter%320) as i32;
         counter = counter.overflowing_add(1).0;
-        
+
         ticker.next().await;
-        
+
     }
 }
 

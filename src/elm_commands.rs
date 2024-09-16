@@ -1,4 +1,6 @@
+#[derive(defmt::Format, Debug)]
 pub struct StaticCommand(&'static str);
+
 
 impl StaticCommand {
     pub fn as_bytes(&self) -> &[u8] {
