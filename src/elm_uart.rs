@@ -27,52 +27,50 @@ pub async fn elm_uart_task(r: ElmUart){
         end: 0,
     };
 
-    defmt::info!("sending {:?} ({:?})", elm_commands::ELM_RESET, elm_commands::ELM_RESET.as_bytes());
+    // defmt::info!("sending {:?} ({:?})", elm_commands::ELM_RESET, elm_commands::ELM_RESET.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::ELM_RESET.as_bytes(), &mut rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
-    defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_ECHO, elm_commands::DISABLE_ECHO.as_bytes());
+    // defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_ECHO, elm_commands::DISABLE_ECHO.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::DISABLE_ECHO.as_bytes(), &mut rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
 
-    defmt::info!("sending {:?} ({:?})", elm_commands::ENABLE_HEADERS, elm_commands::ENABLE_HEADERS.as_bytes());
+    // defmt::info!("sending {:?} ({:?})", elm_commands::ENABLE_HEADERS, elm_commands::ENABLE_HEADERS.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::ENABLE_HEADERS.as_bytes(), &mut rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
 
-    defmt::info!("sending {:?} ({:?})", elm_commands::SET_PROTOCOL_5, elm_commands::SET_PROTOCOL_5.as_bytes());
+    // defmt::info!("sending {:?} ({:?})", elm_commands::SET_PROTOCOL_5, elm_commands::SET_PROTOCOL_5.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::SET_PROTOCOL_5.as_bytes(), &mut rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
 
-    defmt::info!("sending {:?} ({:?})", elm_commands::SET_TIMEOUT_64, elm_commands::SET_TIMEOUT_64.as_bytes());
+    // defmt::info!("sending {:?} ({:?})", elm_commands::SET_TIMEOUT_64, elm_commands::SET_TIMEOUT_64.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::SET_TIMEOUT_64.as_bytes(), &mut rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::EntirelyRecoverable).await;
 
-    defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_SPACES, elm_commands::DISABLE_SPACES.as_bytes());
+    // defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_SPACES, elm_commands::DISABLE_SPACES.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::DISABLE_SPACES.as_bytes(), &mut rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
-    defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_MEMORY, elm_commands::DISABLE_MEMORY.as_bytes());
+    // defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_MEMORY, elm_commands::DISABLE_MEMORY.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::DISABLE_MEMORY.as_bytes(), &mut rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
-    defmt::info!("sending {:?} ({:?})", elm_commands::ENABLE_AUTO_TIMINGS_1, elm_commands::ENABLE_AUTO_TIMINGS_1.as_bytes());
+    // defmt::info!("sending {:?} ({:?})", elm_commands::ENABLE_AUTO_TIMINGS_1, elm_commands::ENABLE_AUTO_TIMINGS_1.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::ENABLE_AUTO_TIMINGS_1.as_bytes(), &mut rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::EntirelyRecoverable).await;
 
-    defmt::info!("sending {:?} ({:?})", elm_commands::SET_CUSTOM_HEADERS, elm_commands::SET_CUSTOM_HEADERS.as_bytes());
+    // defmt::info!("sending {:?} ({:?})", elm_commands::SET_CUSTOM_HEADERS, elm_commands::SET_CUSTOM_HEADERS.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::SET_CUSTOM_HEADERS.as_bytes(), &mut rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
-    
-
 }
 
 async fn result_unpacker<'a, T, E>(result: Result<T, E>,
@@ -169,7 +167,6 @@ async fn uart_write_read<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
                              message: &[u8], 
                              rx_buffer: &mut SizedUartBuffer
 ) -> Result<(), ToRustAGaugeError>{
-    defmt::info!("`uart_write_read` writing: {:?}", message);
     uart.blocking_write(message)?;
     uart.blocking_flush()?;
     defmt::info!("`uart_write_read` wrote and flushed: {:?}", message);
