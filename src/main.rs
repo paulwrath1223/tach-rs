@@ -43,6 +43,8 @@ assign_resources! { // I hate this macro shit
         tx_pin: PIN_0,
         rx_pin: PIN_1,
         uart0: UART0,
+        dma0: DMA_CH0,
+        dma1: DMA_CH1,
     },
     backlight_adc: BacklightAdc{
         adc_pin: PIN_14,
@@ -67,7 +69,7 @@ assign_resources! { // I hate this macro shit
 
 bind_interrupts!(struct Irqs {
     // USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<USB>;
-    UART0_IRQ => embassy_rp::uart::BufferedInterruptHandler<peripherals::UART0>;
+    UART0_IRQ => embassy_rp::uart::InterruptHandler<peripherals::UART0>;
 });
 
 // #[embassy_executor::task]

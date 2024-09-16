@@ -1,12 +1,10 @@
 use core::fmt::{Debug, Formatter};
 use embassy_rp::peripherals::UART0;
 use embassy_rp::uart;
-use embassy_rp::uart::BufferedUart;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Sender;
 use embassy_time::{Duration, WithTimeout};
 use embedded_io_async::{Read, ReadReady, Write};
-use static_cell::StaticCell;
 use crate::{elm_commands, ElmUart, ToMainEvents, Irqs, INCOMING_EVENT_CHANNEL};
 use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 
@@ -18,16 +16,11 @@ const DELIMITER_U8: u8 = '>' as u8;
 #[embassy_executor::task]
 pub async fn elm_uart_task(r: ElmUart){
     let sender: Sender<CriticalSectionRawMutex, ToMainEvents, 10> = INCOMING_EVENT_CHANNEL.sender();
-    let (tx_pin, rx_pin, uart_resource) = (r.tx_pin, r.rx_pin, r.uart0);
-    static TX_BUF: StaticCell<[u8; 16]> = StaticCell::new();
-    let tx_buf = &mut TX_BUF.init([0; 16])[..];
-    static RX_BUF: StaticCell<[u8; 16]> = StaticCell::new();
-    let rx_buf = &mut RX_BUF.init([0; 16])[..];
 
     let mut uart_config = uart::Config::default();
     uart_config.baudrate = 115200;
 
-    let mut uart = BufferedUart::new(uart_resource, Irqs, tx_pin, rx_pin, tx_buf, rx_buf, uart_config);
+    let mut uart = embassy_rp::uart::Uart::new(r.uart0, r.tx_pin, r.rx_pin, Irqs, r.dma0, r.dma1, uart_config);
     
     let mut rx_buf = SizedUartBuffer{
         buffer: [0u8; LOCAL_RX_BUFFER_LEN],
@@ -138,25 +131,25 @@ impl Debug for SizedUartBuffer {
 /// ```
 /// 
 /// ```
-async fn uart_read_until_char<'a>(uart: &mut BufferedUart<'a, UART0>,
+async fn uart_read_until_char<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
                                   delimiter: u8,
                                   rx_buffer: &mut SizedUartBuffer
 ) -> Result<(), ToRustAGaugeError>{
 
-    let mut index: usize = 0;
     rx_buffer.end = 0;
+
+    let mut temp_buffer: [u8; 1] = [0u8];
     
-    while index < LOCAL_RX_BUFFER_LEN {
-        
-        let temp_slice = &mut rx_buffer.buffer[index..];
-        
-        match uart.read(temp_slice).with_timeout(UART_TIMEOUT).await{
-            Ok(Ok(len)) => { // timeout OK( UartRead OK( length read ) ) 
-                if temp_slice[..len].contains(&delimiter){
-                    rx_buffer.end = index + len;
+    while rx_buffer.end < LOCAL_RX_BUFFER_LEN {
+
+
+        match uart.read(&mut temp_buffer).with_timeout(UART_TIMEOUT).await{
+            Ok(Ok(_)) => { // timeout OK( UartRead OK( length read ) )
+                if temp_buffer[0] == delimiter{
                     return Ok(())
                 }
-                index = index + len;
+                rx_buffer.buffer[rx_buffer.end] = temp_buffer[0];
+                rx_buffer.end += 1;
             }
             Ok(Err(e)) => { // timeout OK( UartRead Err( UartError ) ) 
                 return Err(ToRustAGaugeError::UartError(e));
@@ -166,26 +159,16 @@ async fn uart_read_until_char<'a>(uart: &mut BufferedUart<'a, UART0>,
             }
         }
     }
-
     Err(ToRustAGaugeError::UartBufferOverflowError())
 }
 
-async fn clear_read_buf<'a>(uart: &mut BufferedUart<'a, UART0>,
-                            rx_buffer: &mut SizedUartBuffer
-) -> Result<(), ToRustAGaugeError> {
-    while uart.read_ready()?{
-        uart.read(&mut rx_buffer.buffer).await?;
-    }
-    Ok(())
-}
 
 
 
-async fn uart_write_read<'a>(uart: &mut BufferedUart<'a, UART0>,
+async fn uart_write_read<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
                              message: &[u8], 
                              rx_buffer: &mut SizedUartBuffer
 ) -> Result<(), ToRustAGaugeError>{
-    clear_read_buf(uart, rx_buffer).await?;
     defmt::info!("`uart_write_read` writing: {:?}", message);
     uart.blocking_write(message)?;
     uart.blocking_flush()?;
