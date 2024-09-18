@@ -12,6 +12,8 @@ pub enum ToRustAGaugeError {
     #[error("Embassy buffer overflow error. Attempted to read until a delimiter, \
     but read LOCAL_RX_BUFFER_LEN (currently 256, but subject to change) bytes with no delimiter.")]
     UartBufferOverflowError(),
+    #[error("Failed to parse bytes from UART.")]
+    UartByteParseError(),
 }
 
 #[repr(u8)]

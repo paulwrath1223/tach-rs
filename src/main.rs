@@ -8,6 +8,7 @@ mod elm_commands;
 mod elm_uart;
 mod errors;
 mod display;
+mod byte_parsing;
 
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;

@@ -1,14 +1,14 @@
-use core::fmt::{Debug, Formatter};
+use core::marker::PhantomData;
 use embassy_rp::peripherals::UART0;
 use embassy_rp::uart;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Sender;
 use embassy_time::{Duration, WithTimeout};
-use embedded_io_async::{Read, ReadReady, Write};
 use crate::{elm_commands, ElmUart, ToMainEvents, Irqs, INCOMING_EVENT_CHANNEL};
+use crate::byte_parsing::{CharByte, SizedUartBuffer};
 use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 
-const LOCAL_RX_BUFFER_LEN: usize = 256;
+pub(crate) const LOCAL_RX_BUFFER_LEN: usize = 256;
 const UART_TIMEOUT: Duration = Duration::from_millis(1000u64);
 
 const DELIMITER_U8: u8 = '>' as u8;
@@ -22,9 +22,10 @@ pub async fn elm_uart_task(r: ElmUart){
 
     let mut uart = embassy_rp::uart::Uart::new(r.uart0, r.tx_pin, r.rx_pin, Irqs, r.dma0, r.dma1, uart_config);
     
-    let mut rx_buf = SizedUartBuffer{
+    let mut rx_buf: SizedUartBuffer<CharByte> = SizedUartBuffer{
         buffer: [0u8; LOCAL_RX_BUFFER_LEN],
         end: 0,
+        phantom: PhantomData,
     };
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::ELM_RESET, elm_commands::ELM_RESET.as_bytes());
@@ -92,25 +93,6 @@ where E: Into<ToRustAGaugeError>
 }
 
 
-pub struct SizedUartBuffer{
-    buffer: [u8; LOCAL_RX_BUFFER_LEN],
-    end: usize,
-}
-
-impl defmt::Format for SizedUartBuffer{
-    fn format(&self, f: defmt::Formatter<'_>) {
-        let used_slice = &self.buffer[0..self.end];
-        defmt::write!(f, "{:?}", used_slice)
-    }
-}
-
-impl Debug for SizedUartBuffer {
-    fn fmt(&self, f: &mut Formatter) -> core::fmt::Result {
-        let used_slice = &self.buffer[0..self.end];
-        write!(f, "{:?}", used_slice)
-    }
-}
-
 
 /// reads from Uart until it finds the delimiter. Could read past the delimiter, but in this use case
 /// there are no unprompted writes to uart 
@@ -131,23 +113,24 @@ impl Debug for SizedUartBuffer {
 /// ```
 async fn uart_read_until_char<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
                                   delimiter: u8,
-                                  rx_buffer: &mut SizedUartBuffer
+                                  rx_buffer: &mut SizedUartBuffer<CharByte>
 ) -> Result<(), ToRustAGaugeError>{
-
     rx_buffer.end = 0;
 
     let mut temp_buffer: [u8; 1] = [0u8];
     
     while rx_buffer.end < LOCAL_RX_BUFFER_LEN {
-
-
+        
         match uart.read(&mut temp_buffer).with_timeout(UART_TIMEOUT).await{
             Ok(Ok(_)) => { // timeout OK( UartRead OK( length read ) )
                 if temp_buffer[0] == delimiter{
                     return Ok(())
                 }
-                rx_buffer.buffer[rx_buffer.end] = temp_buffer[0];
-                rx_buffer.end += 1;
+                rx_buffer.add_element(temp_buffer[0]);
+                // `add_element` returns false for failures, 
+                // but the only failure mode is a full buffer, 
+                // which is already explicitly check for in this function. 
+                // Therefore, it can be safely ignored
             }
             Ok(Err(e)) => { // timeout OK( UartRead Err( UartError ) ) 
                 return Err(ToRustAGaugeError::UartError(e));
@@ -162,10 +145,9 @@ async fn uart_read_until_char<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
 
 
 
-
 async fn uart_write_read<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
                              message: &[u8], 
-                             rx_buffer: &mut SizedUartBuffer
+                             rx_buffer: &mut SizedUartBuffer<CharByte>
 ) -> Result<(), ToRustAGaugeError>{
     uart.blocking_write(message)?;
     uart.blocking_flush()?;
