@@ -47,7 +47,7 @@ pub const fn get_ascii_command(pid: u8) -> [u8; 6] {
     output
 }
 impl PidCommand{
-    
+
     pub const fn new(pid: u8,
                num_bytes_in_response: usize,
                value_calculation: fn(&[u8]) -> f64
@@ -59,8 +59,8 @@ impl PidCommand{
             ascii_command: get_ascii_command(pid),
         }
     }
-    
-    
+
+
     pub fn extract_val_from_parsed_resp(&self, response: &[u8]) -> Result<f64, ToRustAGaugeError>{
         let resp_len = response.len();
         if resp_len != self.num_bytes_in_response+6{
@@ -76,7 +76,7 @@ impl PidCommand{
         if response[resp_len-1] != actual_sum {
             return Err(ToRustAGaugeError::UartBadChecksumError())
         }
-        
+
         Ok((self.value_calculation)(&response[5..5+self.num_bytes_in_response]))
 
     }
@@ -103,7 +103,7 @@ pub const ENGINE_COOLANT_TEMP_PID: PidCommand = PidCommand::new(
 pub const HEARTBEAT_PID: PidCommand = PidCommand::new(
     0x00,
     4,
-    |_|{ 0f64 } // <- this isn't actually how to interpret the response, 
+    |_|{ 0f64 } // <- this isn't actually how to interpret the response,
     // but I don't ever use the return in this project
 );
 

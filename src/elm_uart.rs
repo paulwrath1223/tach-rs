@@ -4,9 +4,8 @@ use embassy_rp::uart;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Sender;
 use embassy_time::{Duration, WithTimeout};
-use crate::{elm_commands, ElmUart, ToMainEvents, Irqs, INCOMING_EVENT_CHANNEL};
+use crate::{elm_commands, ElmUart, ToMainEvents, Irqs, INCOMING_EVENT_CHANNEL, data_point};
 use crate::byte_parsing::{CharByte, FullyAssembledByte, HexDigit, SizedUartBuffer};
-use crate::elm_commands::HexDigits;
 use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 
 pub(crate) const LOCAL_RX_BUFFER_LEN: usize = 256;
@@ -23,7 +22,19 @@ pub async fn elm_uart_task(r: ElmUart){
 
     let mut uart = embassy_rp::uart::Uart::new(r.uart0, r.tx_pin, r.rx_pin, Irqs, r.dma0, r.dma1, uart_config);
     
-    let mut rx_buf: SizedUartBuffer<CharByte> = SizedUartBuffer{
+    let mut raw_rx_buf: SizedUartBuffer<CharByte> = SizedUartBuffer{
+        buffer: [0u8; LOCAL_RX_BUFFER_LEN],
+        end: 0,
+        phantom: PhantomData,
+    };
+
+    let mut hex_rx_buf: SizedUartBuffer<HexDigit> = SizedUartBuffer{
+        buffer: [0u8; LOCAL_RX_BUFFER_LEN],
+        end: 0,
+        phantom: PhantomData,
+    };
+
+    let mut byte_rx_buf: SizedUartBuffer<FullyAssembledByte> = SizedUartBuffer{
         buffer: [0u8; LOCAL_RX_BUFFER_LEN],
         end: 0,
         phantom: PhantomData,
@@ -31,48 +42,115 @@ pub async fn elm_uart_task(r: ElmUart){
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::ELM_RESET, elm_commands::ELM_RESET.as_bytes());
     result_unpacker(uart_write_read(
-        &mut uart, elm_commands::ELM_RESET.as_bytes(), &mut rx_buf
+        &mut uart, elm_commands::ELM_RESET.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_ECHO, elm_commands::DISABLE_ECHO.as_bytes());
     result_unpacker(uart_write_read(
-        &mut uart, elm_commands::DISABLE_ECHO.as_bytes(), &mut rx_buf
+        &mut uart, elm_commands::DISABLE_ECHO.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::ENABLE_HEADERS, elm_commands::ENABLE_HEADERS.as_bytes());
     result_unpacker(uart_write_read(
-        &mut uart, elm_commands::ENABLE_HEADERS.as_bytes(), &mut rx_buf
+        &mut uart, elm_commands::ENABLE_HEADERS.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::SET_PROTOCOL_5, elm_commands::SET_PROTOCOL_5.as_bytes());
     result_unpacker(uart_write_read(
-        &mut uart, elm_commands::SET_PROTOCOL_5.as_bytes(), &mut rx_buf
+        &mut uart, elm_commands::SET_PROTOCOL_5.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::SET_TIMEOUT_64, elm_commands::SET_TIMEOUT_64.as_bytes());
     result_unpacker(uart_write_read(
-        &mut uart, elm_commands::SET_TIMEOUT_64.as_bytes(), &mut rx_buf
+        &mut uart, elm_commands::SET_TIMEOUT_64.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::EntirelyRecoverable).await;
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_SPACES, elm_commands::DISABLE_SPACES.as_bytes());
     result_unpacker(uart_write_read(
-        &mut uart, elm_commands::DISABLE_SPACES.as_bytes(), &mut rx_buf
+        &mut uart, elm_commands::DISABLE_SPACES.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_MEMORY, elm_commands::DISABLE_MEMORY.as_bytes());
     result_unpacker(uart_write_read(
-        &mut uart, elm_commands::DISABLE_MEMORY.as_bytes(), &mut rx_buf
+        &mut uart, elm_commands::DISABLE_MEMORY.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::ENABLE_AUTO_TIMINGS_1, elm_commands::ENABLE_AUTO_TIMINGS_1.as_bytes());
     result_unpacker(uart_write_read(
-        &mut uart, elm_commands::ENABLE_AUTO_TIMINGS_1.as_bytes(), &mut rx_buf
+        &mut uart, elm_commands::ENABLE_AUTO_TIMINGS_1.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::EntirelyRecoverable).await;
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::SET_CUSTOM_HEADERS, elm_commands::SET_CUSTOM_HEADERS.as_bytes());
     result_unpacker(uart_write_read(
-        &mut uart, elm_commands::SET_CUSTOM_HEADERS.as_bytes(), &mut rx_buf
+        &mut uart, elm_commands::SET_CUSTOM_HEADERS.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
+
+    result_unpacker(
+        get_pid(
+            elm_commands::HEARTBEAT_PID, 
+            &mut uart, 
+            &mut raw_rx_buf, 
+            &mut hex_rx_buf, 
+            &mut byte_rx_buf
+        ).await, 
+        sender, 
+        ToRustAGaugeErrorSeverity::CompleteFailure
+    ).await;
+    
+    sender.send(ToMainEvents::ElmInitComplete).await;
+
+    loop {
+        match result_unpacker(
+            get_pid(
+                elm_commands::ENGINE_RPM_PID,
+                &mut uart,
+                &mut raw_rx_buf,
+                &mut hex_rx_buf,
+                &mut byte_rx_buf
+            ).await,
+            sender,
+            ToRustAGaugeErrorSeverity::BadIfReoccurring
+        ).await {
+            Some(v) => {
+                sender.send(
+                    ToMainEvents::ElmDataPoint(
+                        data_point::DataPoint{
+                            data: data_point::Datum::RPM(v), 
+                            time: embassy_time::Instant::now()
+                        }
+                    )
+                ).await;
+            }
+            None => {}
+        }
+
+        match result_unpacker(
+            get_pid(
+                elm_commands::ENGINE_COOLANT_TEMP_PID,
+                &mut uart,
+                &mut raw_rx_buf,
+                &mut hex_rx_buf,
+                &mut byte_rx_buf
+            ).await,
+            sender,
+            ToRustAGaugeErrorSeverity::BadIfReoccurring
+        ).await {
+            Some(v) => {
+                sender.send(
+                    ToMainEvents::ElmDataPoint(
+                        data_point::DataPoint{
+                            data: data_point::Datum::CoolantTempC(v),
+                            time: embassy_time::Instant::now()
+                        }
+                    )
+                ).await;
+            }
+            None => {}
+        }
+        
+        
+        
+    }
 }
 
 async fn result_unpacker<'a, T, E>(result: Result<T, E>,

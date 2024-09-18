@@ -1,5 +1,6 @@
 use core::fmt::{Debug, Formatter};
 use core::marker::PhantomData;
+use embassy_rp::rom_data::reset_to_usb_boot;
 use crate::errors::ToRustAGaugeError;
 
 pub trait BufferMode {}
@@ -141,6 +142,53 @@ impl SizedUartBuffer<FullyAssembledByte> {
             }
         })
     }
+}
+
+pub fn parse_voltage(buffer: &SizedUartBuffer<FullyAssembledByte>) -> Result<f64, ToRustAGaugeError>{
+    let slice = buffer.get_slice();
+    
+    const MAX_NUM_DIGITS: usize = 4;
+    
+    let mut valid_digits: [u8; MAX_NUM_DIGITS] = [0u8; MAX_NUM_DIGITS];
+    
+    let mut char_index: usize = 0;
+    let mut tenths_place_index: Option<usize> = None;
+    
+    for temp_byte in slice{
+        match temp_byte{
+            &v if v>=0x30 && v<=0x39 => {
+                if char_index >=MAX_NUM_DIGITS{
+                    return Err(ToRustAGaugeError::UartVoltageParseError())
+                }
+                valid_digits[char_index] = v-0x30;
+                char_index +=1
+            }
+            b'.' => {
+                tenths_place_index = Some(char_index);
+            }
+            _ => {}
+        }
+    }
+
+    let tenths_place_index_unwrapped = match tenths_place_index{
+        Some(v) => v,
+        None => return Err(ToRustAGaugeError::UartVoltageParseError()),
+    };
+    
+    let mut voltage = 0f64;
+    let mut multiplier: f64 = 1f64;
+    
+    for digit in valid_digits{
+        voltage += (digit as f64) * multiplier;
+        multiplier /= 10f64;
+    }
+    
+    let mut place_normalization_index: usize = 0;
+    while place_normalization_index < tenths_place_index_unwrapped-1{
+        voltage *= 10f64;
+        place_normalization_index+=1;
+    }
+    Ok(voltage)
 }
 
 

@@ -20,6 +20,8 @@ pub enum ToRustAGaugeError {
     UartIncorrectLengthError(),
     #[error("Response from ELM did not match the requested PID")]
     UartPidMismatchError(),
+    #[error("Failed to parse voltage from ELM")]
+    UartVoltageParseError(),
 }
 
 #[repr(u8)]
