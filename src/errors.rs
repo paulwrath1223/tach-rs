@@ -14,6 +14,12 @@ pub enum ToRustAGaugeError {
     UartBufferOverflowError(),
     #[error("Failed to parse bytes from UART.")]
     UartByteParseError(),
+    #[error("Response from ELM failed checksum test")]
+    UartBadChecksumError(),
+    #[error("Response from ELM was not the expected length")]
+    UartIncorrectLengthError(),
+    #[error("Response from ELM did not match the requested PID")]
+    UartPidMismatchError(),
 }
 
 #[repr(u8)]

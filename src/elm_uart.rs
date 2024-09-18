@@ -5,7 +5,8 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Sender;
 use embassy_time::{Duration, WithTimeout};
 use crate::{elm_commands, ElmUart, ToMainEvents, Irqs, INCOMING_EVENT_CHANNEL};
-use crate::byte_parsing::{CharByte, SizedUartBuffer};
+use crate::byte_parsing::{CharByte, FullyAssembledByte, HexDigit, SizedUartBuffer};
+use crate::elm_commands::HexDigits;
 use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 
 pub(crate) const LOCAL_RX_BUFFER_LEN: usize = 256;
@@ -144,7 +145,6 @@ async fn uart_read_until_char<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
 }
 
 
-
 async fn uart_write_read<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
                              message: &[u8], 
                              rx_buffer: &mut SizedUartBuffer<CharByte>
@@ -157,3 +157,25 @@ async fn uart_write_read<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
     defmt::info!("`uart_write_read` read: {:?}", rx_buffer);
     Ok(())
 }
+
+async fn get_pid<'a>(pid: elm_commands::PidCommand, 
+                     uart: &mut uart::Uart<'a, UART0, uart::Async>, 
+                     rx_buffer: &mut SizedUartBuffer<CharByte>,
+                     intermediate_buffer: &mut SizedUartBuffer<HexDigit>,
+                     byte_buffer: &mut SizedUartBuffer<FullyAssembledByte>,
+) -> Result<f64, ToRustAGaugeError> {
+    uart_write_read(uart, &pid.ascii_command, rx_buffer).await?;
+    rx_buffer.parse_bytes(intermediate_buffer);
+    byte_buffer.populate_from_hex_digit_buffer(intermediate_buffer)?;
+    pid.extract_val_from_parsed_resp(byte_buffer.get_slice())
+}
+
+
+
+
+
+
+
+
+
+

@@ -33,6 +33,10 @@ impl<M: BufferMode> SizedUartBuffer<M>{
             false
         }
     }
+    
+    pub fn get_slice(&self) -> &[u8]{
+        &self.buffer[0..self.end]
+    }
 }
 
 pub struct SizedUartBuffer<MODE: BufferMode>{
@@ -43,15 +47,13 @@ pub struct SizedUartBuffer<MODE: BufferMode>{
 
 impl<M: BufferMode> defmt::Format for SizedUartBuffer<M> {
     fn format(&self, f: defmt::Formatter<'_>) {
-        let used_slice = &self.buffer[0..self.end];
-        defmt::write!(f, "{:?}", used_slice)
+        defmt::write!(f, "{:?}", self.get_slice())
     }
 }
 
 impl<M: BufferMode> Debug for SizedUartBuffer<M> {
     fn fmt(&self, f: &mut Formatter) -> core::fmt::Result {
-        let used_slice = &self.buffer[0..self.end];
-        write!(f, "{:?}", used_slice)
+        write!(f, "{:?}", self.get_slice())
     }
 }
 
