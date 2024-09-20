@@ -4,8 +4,9 @@ use embassy_rp::uart;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Sender;
 use embassy_time::{Duration, WithTimeout};
+use embedded_hal_async::delay::DelayNs;
 use crate::{elm_commands, ElmUart, ToMainEvents, Irqs, INCOMING_EVENT_CHANNEL, data_point};
-use crate::byte_parsing::{CharByte, FullyAssembledByte, HexDigit, SizedUartBuffer};
+use crate::byte_parsing::{parse_voltage, CharByte, FullyAssembledByte, HexDigit, SizedUartBuffer};
 use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 
 pub(crate) const LOCAL_RX_BUFFER_LEN: usize = 256;
@@ -96,8 +97,10 @@ pub async fn elm_uart_task(r: ElmUart){
         sender, 
         ToRustAGaugeErrorSeverity::CompleteFailure
     ).await;
-    
+
     sender.send(ToMainEvents::ElmInitComplete).await;
+
+    let mut loop_counter: u8 = 0;
 
     loop {
         match result_unpacker(
@@ -115,7 +118,7 @@ pub async fn elm_uart_task(r: ElmUart){
                 sender.send(
                     ToMainEvents::ElmDataPoint(
                         data_point::DataPoint{
-                            data: data_point::Datum::RPM(v), 
+                            data: data_point::Datum::RPM(v),
                             time: embassy_time::Instant::now()
                         }
                     )
@@ -124,31 +127,54 @@ pub async fn elm_uart_task(r: ElmUart){
             None => {}
         }
 
-        match result_unpacker(
-            get_pid(
-                elm_commands::ENGINE_COOLANT_TEMP_PID,
-                &mut uart,
-                &mut raw_rx_buf,
-                &mut hex_rx_buf,
-                &mut byte_rx_buf
-            ).await,
-            sender,
-            ToRustAGaugeErrorSeverity::BadIfReoccurring
-        ).await {
-            Some(v) => {
-                sender.send(
-                    ToMainEvents::ElmDataPoint(
-                        data_point::DataPoint{
-                            data: data_point::Datum::CoolantTempC(v),
-                            time: embassy_time::Instant::now()
-                        }
-                    )
-                ).await;
+        if loop_counter & 0x0F == 0{
+            match result_unpacker(
+                get_pid(
+                    elm_commands::ENGINE_COOLANT_TEMP_PID,
+                    &mut uart,
+                    &mut raw_rx_buf,
+                    &mut hex_rx_buf,
+                    &mut byte_rx_buf
+                ).await,
+                sender,
+                ToRustAGaugeErrorSeverity::BadIfReoccurring
+            ).await {
+                Some(v) => {
+                    sender.send(
+                        ToMainEvents::ElmDataPoint(
+                            data_point::DataPoint{
+                                data: data_point::Datum::CoolantTempC(v),
+                                time: embassy_time::Instant::now()
+                            }
+                        )
+                    ).await;
+                }
+                None => {}
             }
-            None => {}
+
+            match result_unpacker(
+                get_voltage(
+                    &mut uart,
+                    &mut raw_rx_buf,
+                ).await,
+                sender,
+                ToRustAGaugeErrorSeverity::BadIfReoccurring
+            ).await {
+                Some(v) => {
+                    sender.send(
+                        ToMainEvents::ElmDataPoint(
+                            data_point::DataPoint{
+                                data: data_point::Datum::VBat(v),
+                                time: embassy_time::Instant::now()
+                            }
+                        )
+                    ).await;
+                }
+                None => {}
+            }
         }
-        
-        
+        loop_counter = loop_counter.overflowing_add(1).0;
+        embassy_time::Delay.delay_ms(100).await;
         
     }
 }
@@ -246,6 +272,14 @@ async fn get_pid<'a>(pid: elm_commands::PidCommand,
     rx_buffer.parse_bytes(intermediate_buffer);
     byte_buffer.populate_from_hex_digit_buffer(intermediate_buffer)?;
     pid.extract_val_from_parsed_resp(byte_buffer.get_slice())
+}
+
+
+async fn get_voltage<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
+                         rx_buffer: &mut SizedUartBuffer<CharByte>
+) -> Result<f64, ToRustAGaugeError>{
+    uart_write_read(uart, elm_commands::ELM_REQUEST_VBAT.as_bytes(), rx_buffer).await?;
+    parse_voltage(rx_buffer)
 }
 
 

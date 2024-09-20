@@ -144,7 +144,7 @@ impl SizedUartBuffer<FullyAssembledByte> {
     }
 }
 
-pub fn parse_voltage(buffer: &SizedUartBuffer<FullyAssembledByte>) -> Result<f64, ToRustAGaugeError>{
+pub fn parse_voltage(buffer: &mut SizedUartBuffer<CharByte>) -> Result<f64, ToRustAGaugeError>{
     let slice = buffer.get_slice();
     
     const MAX_NUM_DIGITS: usize = 4;
@@ -190,6 +190,8 @@ pub fn parse_voltage(buffer: &SizedUartBuffer<FullyAssembledByte>) -> Result<f64
     }
     Ok(voltage)
 }
+
+
 
 
 #[cfg(test)]

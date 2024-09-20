@@ -17,13 +17,16 @@ use embassy_time::{Delay, Duration, Ticker};
 use embedded_graphics::image::{Image, ImageRawLE};
 use embedded_graphics::mono_font::ascii::FONT_10X20;
 use embedded_graphics::mono_font::MonoTextStyle;
-use embedded_graphics::pixelcolor::{Rgb565};
+use embedded_graphics::pixelcolor::{Rgb565, Rgb888};
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::PrimitiveStyle;
-use embedded_graphics::text;
+use embedded_graphics::primitives::{Line, PrimitiveStyle};
+use embedded_graphics::{mono_font, text};
+use embedded_graphics::text::Text;
 use mipidsi::options::{ColorInversion, Orientation};
 use {defmt_rtt as _, panic_probe as _};
 use crate::DisplayPins;
+use tinybmp::Bmp;
+use profont;
 
 const DISPLAY_FREQ: u32 = 64_000_000;
 
@@ -79,46 +82,81 @@ pub async fn display_task(r: DisplayPins) {
 
 
 
-    display.clear(Rgb565::BLACK).unwrap();
+    let bg_color = Rgb565::BLACK;
+    let pure_orang = Rgb888::new(234, 94, 26);
+    let orang = Rgb565::from(pure_orang);
 
-    let raw_image_data = ImageRawLE::new(include_bytes!("../display_assets/ferris.raw"), 86);
-    let ferris = Image::new(&raw_image_data, Point::new(5, 40));
+    let rust_logo_data: Bmp<Rgb565> = Bmp::from_slice(include_bytes!("../display_assets/Rust Logo Layer.bmp")).expect("failed to parse bmp");
+    let rust_logo = Image::with_center(&rust_logo_data, Point::new(260, 128));
 
-    info!("initialized ferris");
+    let coolant_temp_icon_data: Bmp<Rgb565> = Bmp::from_slice(include_bytes!("../display_assets/Coolant Temp Layer.bmp")).expect("failed to parse bmp");
+    let coolant_temp_icon = Image::with_center(&coolant_temp_icon_data, Point::new(48, 128));
+
+    let warning_icon_data: Bmp<Rgb565> = Bmp::from_slice(include_bytes!("../display_assets/Warning Layer.bmp")).expect("failed to parse bmp");
+    let warning_icon = Image::with_center(&warning_icon_data, Point::new(279, 42));
+
+    let light_icon_data: Bmp<Rgb565> = Bmp::from_slice(include_bytes!("../display_assets/Light Indicator Layer.bmp")).expect("failed to parse bmp");
+    let light_icon = Image::with_center(&light_icon_data, Point::new(222, 24));
+
+    let good_vbat_icon_data: Bmp<Rgb565> = Bmp::from_slice(include_bytes!("../display_assets/Good Battery Layer.bmp")).expect("failed to parse bmp");
+    let good_vbat_icon = Image::with_center(&good_vbat_icon_data, Point::new(48, 42));
+
+    let bad_vbat_icon_data: Bmp<Rgb565> = Bmp::from_slice(include_bytes!("../display_assets/Bad Battery Layer.bmp")).expect("failed to parse bmp");
+    let bad_vbat_icon = Image::with_center(&bad_vbat_icon_data, Point::new(48, 42));
+
+    display.clear(bg_color).expect("failed to clear");
+
+    info!("initialized icons");
 
     // Display the image
 
 
-    let style = MonoTextStyle::new(&FONT_10X20, Rgb565::GREEN);
-    let text = text::Text::new(
-        "Hello embedded_graphics \n + embassy + RP2040!",
-        Point::new(90, 30),
-        style,
-    );
+    let line_style = PrimitiveStyle::with_stroke(orang, 2);
+    let error_text_style = MonoTextStyle::new(&FONT_10X20, orang);
+
+    let main_text_style = MonoTextStyle::new(&profont::PROFONT_24_POINT, orang);
+
+
+
+    Line::new(Point::new(200, 0), Point::new(200, 170))
+        .into_styled(line_style)
+        .draw(&mut display).expect("failed to make vertical line");
+
+    Line::new(Point::new(0, 85), Point::new(320, 85))
+        .into_styled(line_style)
+        .draw(&mut display).expect("failed to make horizontal line");
 
     let mut ticker = Ticker::every(Duration::from_millis(50));
 
     let mut counter: u64 = 0;
-    let fill_blue = PrimitiveStyle::with_fill(Rgb565::BLUE);
 
-    let mut circle_blue = embedded_graphics::primitives::Circle::new(
-        Point::new(0, 100), 15)
-        .into_styled(fill_blue);
+    let mut error_text = Text::new("Hello World\nLine 2??\nLine 3??\nLine 4??", Point::new(206, 103), error_text_style);
 
-    let fill_black = PrimitiveStyle::with_fill(Rgb565::BLACK);
+    let mut vbat_text = Text::new("?????", Point::new(108, 48), main_text_style);
 
-    let mut circle_black = embedded_graphics::primitives::Circle::new(
-        Point::new(0, 100), 15)
-        .into_styled(fill_black);
+    vbat_text.text = "12.5V";
 
-    ferris.draw(&mut display).expect("drawing ferris failed");
-    text.draw(&mut display).expect("text.draw failed");
+    let mut coolant_temp_text = Text::new("?????", Point::new(108, 134), main_text_style);
+
+    coolant_temp_text.text = "105°C";
+
+    rust_logo.draw(&mut display).expect("failed to draw rust_logo");
+    coolant_temp_icon.draw(&mut display).expect("failed to draw coolant_temp_icon");
+    warning_icon.draw(&mut display).expect("failed to draw warning_icon");
+    light_icon.draw(&mut display).expect("failed to draw light_icon");
+    good_vbat_icon.draw(&mut display).expect("failed to draw good_vbat_icon");
+    // bad_vbat_icon.draw(&mut display).expect("failed to draw bad_vbat_icon");
+
+    // error_text.draw(&mut display).expect("failed to draw error_text");
+    vbat_text.draw(&mut display).expect("failed to draw vbat_text");
+    coolant_temp_text.draw(&mut display).expect("failed to draw coolant_temp_text");
+    
+    
 
     loop {
-        circle_black.draw(&mut display).expect("drawing circle failed");
-        circle_black.primitive.top_left.x = ((counter.overflowing_sub(15).0)%320) as i32;
-        circle_blue.draw(&mut display).expect("drawing circle failed");
-        circle_blue.primitive.top_left.x = (counter%320) as i32;
+        
+        
+
         counter = counter.overflowing_add(1).0;
 
         ticker.next().await;
