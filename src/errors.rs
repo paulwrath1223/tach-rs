@@ -24,6 +24,35 @@ pub enum ToRustAGaugeError {
     UartVoltageParseError(),
 }
 
+const NONDESCRIPT_ERROR_STR: &'static str =           "non-descr- \nipt error! \n   :(      \n   :(      ";
+const UART_ERROR_STR: &'static str =                  "UART had an\ninternal   \nerror.     \n(hardware) ";
+const UART_TIMEOUT_ERROR_STR: &'static str =          "UART timed \nout waiting\n           \n           ";
+const UART_BUFFER_OVERFLOW_ERROR_STR: &'static str =  "UART soft- \nware buffer\noverflowed!\n           ";
+const UART_BYTE_PARSE_ERROR_STR: &'static str =       "UART soft- \nware failed\nto parse in\ncoming byte";
+const UART_BAD_CHECKSUM_ERROR_STR: &'static str =     "UART soft- \nware failed\nto verify  \nchecksum   ";
+const UART_INCORRECT_LENGTH_ERROR_STR: &'static str = "UART resp. \nincluded   \nwrong num  \nof bytes   ";
+const UART_PID_MISMATCH_ERROR_STR: &'static str =     "UART resp. \nincluded   \nwrong PID  \n           ";
+const UART_VOLTAGE_PARSE_ERROR_STR: &'static str =    "UART soft- \nware failed\nto parse   \nvoltage!   ";
+
+
+
+impl ToRustAGaugeError{
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            ToRustAGaugeError::NondescriptError() => { NONDESCRIPT_ERROR_STR }
+            ToRustAGaugeError::UartError(_) => { UART_ERROR_STR }
+            ToRustAGaugeError::UartTimeoutError(_) => { UART_TIMEOUT_ERROR_STR }
+            ToRustAGaugeError::UartBufferOverflowError() => { UART_BUFFER_OVERFLOW_ERROR_STR }
+            ToRustAGaugeError::UartByteParseError() => { UART_BYTE_PARSE_ERROR_STR }
+            ToRustAGaugeError::UartBadChecksumError() => { UART_BAD_CHECKSUM_ERROR_STR }
+            ToRustAGaugeError::UartIncorrectLengthError() => { UART_INCORRECT_LENGTH_ERROR_STR }
+            ToRustAGaugeError::UartPidMismatchError() => { UART_PID_MISMATCH_ERROR_STR }
+            ToRustAGaugeError::UartVoltageParseError() => { UART_VOLTAGE_PARSE_ERROR_STR }
+        }
+    }
+}
+
 #[repr(u8)]
 #[derive(Debug, defmt::Format)]
 pub enum ToRustAGaugeErrorSeverity {
@@ -47,8 +76,8 @@ impl ToRustAGaugeErrorWithSeverity {
 
 #[derive(defmt::Format)]
 pub struct ToRustAGaugeErrorWithSeverity {
-    error: ToRustAGaugeError,
-    severity: ToRustAGaugeErrorSeverity,
+    pub error: ToRustAGaugeError,
+    pub severity: ToRustAGaugeErrorSeverity,
 }
 
 impl Debug for ToRustAGaugeErrorWithSeverity {

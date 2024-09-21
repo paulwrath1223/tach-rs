@@ -19,14 +19,16 @@ use embedded_graphics::mono_font::ascii::FONT_10X20;
 use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::pixelcolor::{Rgb565, Rgb888};
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::{Line, PrimitiveStyle};
+use embedded_graphics::primitives::{Line, PrimitiveStyle, Rectangle};
 use embedded_graphics::{mono_font, text};
 use embedded_graphics::text::Text;
 use mipidsi::options::{ColorInversion, Orientation};
 use {defmt_rtt as _, panic_probe as _};
-use crate::DisplayPins;
+use crate::{DisplayPins, ToLcdEvents, LCD_EVENT_CHANNEL};
 use tinybmp::Bmp;
 use profont;
+use crate::data_point::Datum;
+use crate::errors::{ToRustAGaugeErrorWithSeverity};
 
 const DISPLAY_FREQ: u32 = 64_000_000;
 
@@ -36,9 +38,9 @@ pub async fn display_task(r: DisplayPins) {
     info!("Hello from display task!");
 
     let bl = r.bl;
-    let rst = r.rst;
+    let rst_resource = r.rst;
     let display_cs = r.display_cs;
-    let dcx = r.dcx;
+    let dcx_resource = r.dcx;
     let miso = r.miso;
     let mosi = r.mosi;
     let clk = r.clk;
@@ -48,6 +50,8 @@ pub async fn display_task(r: DisplayPins) {
     display_config.frequency = DISPLAY_FREQ;
     display_config.phase = spi::Phase::CaptureOnSecondTransition;
     display_config.polarity = spi::Polarity::IdleHigh;
+    
+    let receiver = LCD_EVENT_CHANNEL.receiver();
 
 
     let spi: Spi<'_, _, Blocking> = Spi::new_blocking(r.spi_resource, clk, mosi, miso, display_config.clone());
@@ -55,10 +59,11 @@ pub async fn display_task(r: DisplayPins) {
 
     let display_spi = SpiDeviceWithConfig::new(&spi_bus, Output::new(display_cs, Level::High), display_config);
 
-
-    let dcx = Output::new(dcx, Level::Low);
-    let rst = Output::new(rst, Level::Low);
-    let bl = Output::new(bl, Level::High);
+    let mut current_error: Option<ToRustAGaugeErrorWithSeverity> = None;
+    
+    let dcx = Output::new(dcx_resource, Level::Low);
+    let rst = Output::new(rst_resource, Level::Low);
+    
 
     // display interface abstraction from SPI and DC
     let di = display_interface_spi::SPIInterface::new(display_spi, dcx);
@@ -79,7 +84,6 @@ pub async fn display_task(r: DisplayPins) {
     // initialize
 
     info!("initialized display");
-
 
 
     let bg_color = Rgb565::BLACK;
@@ -127,6 +131,10 @@ pub async fn display_task(r: DisplayPins) {
         .draw(&mut display).expect("failed to make horizontal line");
 
     let mut ticker = Ticker::every(Duration::from_millis(50));
+    
+    let error_quadrant_clear = Rectangle::with_corners(
+        Point::new(202, 87), Point::new(320, 170))
+        .into_styled(PrimitiveStyle::with_fill(bg_color));
 
     let mut counter: u64 = 0;
 
@@ -154,7 +162,36 @@ pub async fn display_task(r: DisplayPins) {
     
 
     loop {
-        
+        match receiver.receive().await{
+            ToLcdEvents::NewData(d) => {
+                match d.data{
+                    Datum::VBat(v) => {
+                        
+                    }
+                    Datum::CoolantTempC(v) => {
+                        
+                    }
+                    _ => {
+                        defmt::error!("LCD received unknown datum (not Vbat or Coolant temp)");
+                    }
+                }
+            }
+            ToLcdEvents::IsBackLightOn(new_bl_state) => {
+                defmt::todo!();
+            }
+            ToLcdEvents::Error(new_error) => {
+                match new_error{
+                    Some(e) => {
+                        error_text.text = e.error.to_str();
+                        error_text.draw(&mut display).expect("failed to draw error_text");
+                    }
+                    None => {
+                        error_quadrant_clear.draw(&mut display).expect("failed to clear error quadrant");
+                        rust_logo.draw(&mut display).expect("failed to draw ferris in error quad");
+                    }
+                }
+            }
+        }
         
 
         counter = counter.overflowing_add(1).0;
