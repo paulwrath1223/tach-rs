@@ -125,7 +125,8 @@ impl SizedUartBuffer<FullyAssembledByte> {
                                           parsed_byte_buffer: &SizedUartBuffer<HexDigit>
     ) -> Result<(), ToRustAGaugeError>{
         let digit_slice = &parsed_byte_buffer.buffer[0..parsed_byte_buffer.end];
-
+        self.end = 0;
+        
         digit_slice.chunks(2).try_for_each(|parsed_hex_digit_pair|{
             match combine_4bit_pair(parsed_hex_digit_pair){
                 Ok(full_parsed_byte) => {

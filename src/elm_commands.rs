@@ -1,3 +1,4 @@
+use defmt::Formatter;
 use crate::errors::ToRustAGaugeError;
 
 #[derive(defmt::Format, Debug)]
@@ -23,7 +24,7 @@ pub const SET_CUSTOM_HEADERS: StaticCommand = StaticCommand("ATSH8210F0\r");
 pub const ELM_REQUEST_VBAT: StaticCommand = StaticCommand("ATRV\r");
 
 
-const PID_COMMAND_PADDING: [u8; 6] = [0x32, 0x31, 0x30, 0x30, 0x30, 0x31];
+const PID_COMMAND_PADDING: [u8; 7] = [0x32, 0x31, 0x30, 0x30, 0x30, 0x31, 0x0d];
 
 #[repr(u8)]
 pub enum PID{
@@ -32,13 +33,14 @@ pub enum PID{
     EngineRpm = 0x0c,
 }
 
+
 pub struct PidCommand{
     pub pid: u8,
     pub num_bytes_in_response: usize,
     value_calculation: fn(&[u8]) -> f64,
-    pub ascii_command: [u8; 6]
+    pub ascii_command: [u8; 7]
 }
-pub const fn get_ascii_command(pid: u8) -> [u8; 6] {
+pub const fn get_ascii_command(pid: u8) -> [u8; 7] {
     let mut output = PID_COMMAND_PADDING;
     let hex_digit_1: u8 = HexDigits::from_val(pid >> 4) as u8;
     let hex_digit_2: u8 = HexDigits::from_val(pid) as u8;
@@ -79,6 +81,13 @@ impl PidCommand{
 
         Ok((self.value_calculation)(&response[5..5+self.num_bytes_in_response]))
 
+    }
+}
+
+
+impl defmt::Format for PidCommand{
+    fn format(&self, fmt: Formatter) {
+        defmt::write!(fmt, "PidCommand(pid = {:?}, num_resp_bytes = {:?}, ascii_command = {:?})", self.pid, self.num_bytes_in_response, self.ascii_command)
     }
 }
 
