@@ -22,6 +22,9 @@ pub enum ToRustAGaugeError {
     UartPidMismatchError(),
     #[error("Failed to parse voltage from ELM")]
     UartVoltageParseError(),
+    #[error("Error communicating with LCD")]
+    MipiDsiError(),
+    
 }
 
 const NONDESCRIPT_ERROR_STR: &'static str =           "non-descr- \nipt error! \n   :(      \n   :(      ";
@@ -33,6 +36,8 @@ const UART_BAD_CHECKSUM_ERROR_STR: &'static str =     "UART soft- \nware failed\
 const UART_INCORRECT_LENGTH_ERROR_STR: &'static str = "UART resp. \nincluded   \nwrong num  \nof bytes   ";
 const UART_PID_MISMATCH_ERROR_STR: &'static str =     "UART resp. \nincluded   \nwrong PID  \n           ";
 const UART_VOLTAGE_PARSE_ERROR_STR: &'static str =    "UART soft- \nware failed\nto parse   \nvoltage!   ";
+const MIPI_DSI_ERROR_STR: &'static str =              "LCD Error! \nSPI commun-\nication    \nfailure!   ";
+// const UART_VOLTAGE_PARSE_ERROR_STR: &'static str =    "UART soft- \nware failed\nto parse   \nvoltage!   ";
 
 
 
@@ -49,6 +54,7 @@ impl ToRustAGaugeError{
             ToRustAGaugeError::UartIncorrectLengthError() => { UART_INCORRECT_LENGTH_ERROR_STR }
             ToRustAGaugeError::UartPidMismatchError() => { UART_PID_MISMATCH_ERROR_STR }
             ToRustAGaugeError::UartVoltageParseError() => { UART_VOLTAGE_PARSE_ERROR_STR }
+            ToRustAGaugeError::MipiDsiError() => { MIPI_DSI_ERROR_STR }
         }
     }
 }
