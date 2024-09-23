@@ -6,9 +6,11 @@
 use core::cell::RefCell;
 
 use defmt::*;
+use display_interface_spi::SPIInterface;
 use embassy_embedded_hal::shared_bus::blocking::spi::SpiDeviceWithConfig;
 
 use embassy_rp::gpio::{Level, Output};
+use embassy_rp::peripherals::SPI1;
 use embassy_rp::spi;
 use embassy_rp::spi::{Blocking, Spi};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
@@ -22,13 +24,15 @@ use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::{Line, PrimitiveStyle, Rectangle};
 use embedded_graphics::{mono_font, text};
 use embedded_graphics::text::Text;
+use mipidsi::Display;
+use mipidsi::models::ST7789;
 use mipidsi::options::{ColorInversion, Orientation};
 use {defmt_rtt as _, panic_probe as _};
 use crate::{DisplayPins, ToLcdEvents, LCD_EVENT_CHANNEL};
 use tinybmp::Bmp;
 use profont;
 use crate::data_point::Datum;
-use crate::errors::{ToRustAGaugeErrorWithSeverity};
+use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorWithSeverity};
 
 const DISPLAY_FREQ: u32 = 64_000_000;
 
@@ -66,12 +70,12 @@ pub async fn display_task(r: DisplayPins) {
     
 
     // display interface abstraction from SPI and DC
-    let di = display_interface_spi::SPIInterface::new(display_spi, dcx);
+    let di = SPIInterface::new(display_spi, dcx);
 
     let display_orientation = Orientation::new().rotate(mipidsi::options::Rotation::Deg90);
 
     // create driver
-    let mut display = mipidsi::Builder::new(mipidsi::models::ST7789, di)
+    let mut display = mipidsi::Builder::new(ST7789, di)
         .reset_pin(rst)
         .display_size(170, 320)
         .display_offset(35, 0)
@@ -135,6 +139,8 @@ pub async fn display_task(r: DisplayPins) {
     let error_quadrant_clear = Rectangle::with_corners(
         Point::new(202, 87), Point::new(320, 170))
         .into_styled(PrimitiveStyle::with_fill(bg_color));
+    
+    let mut last_error: Option<ToRustAGaugeErrorWithSeverity> = None;
 
     let mut counter: u64 = 0;
 
@@ -180,16 +186,28 @@ pub async fn display_task(r: DisplayPins) {
                 defmt::todo!();
             }
             ToLcdEvents::Error(new_error) => {
-                match new_error{
-                    Some(e) => {
-                        error_text.text = e.error.to_str();
+                match (&new_error, &last_error){
+                    (Some(some_new_error), Some(_last_error)) => {
+                        error_text.clear_bounding_box(&mut display, bg_color).expect("failed to clear text");
+                        error_text.text = some_new_error.error.to_str();
                         error_text.draw(&mut display).expect("failed to draw error_text");
                     }
-                    None => {
-                        error_quadrant_clear.draw(&mut display).expect("failed to clear error quadrant");
+                    (Some(some_new_error), None) => {
+                        rust_logo.clear_bounding_box(&mut display, bg_color).expect("failed to clear rust logo");
+                        error_text.text = some_new_error.error.to_str();
+                        error_text.draw(&mut display).expect("failed to draw error_text");
+                        warning_icon.draw(&mut display).expect("failed to draw warning icon");
+                    }
+                    (None, Some(_last_error)) => {
+                        error_text.clear_bounding_box(&mut display, bg_color).expect("failed to clear text");
                         rust_logo.draw(&mut display).expect("failed to draw ferris in error quad");
+                        warning_icon.clear_bounding_box(&mut display, bg_color).expect("failed to clear warning_icon");
+                    }
+                    _ => {
+                        
                     }
                 }
+                last_error = new_error;
             }
         }
         
@@ -200,6 +218,29 @@ pub async fn display_task(r: DisplayPins) {
 
     }
 }
+
+pub trait Clear
+where Self: Dimensions
+{
+    fn clear_bounding_box(&self, display: &mut Display<SPIInterface<SpiDeviceWithConfig<NoopRawMutex, Spi<SPI1, Blocking>, Output>, Output>, ST7789, Output>, color: Rgb565) -> Result<(), ToRustAGaugeError>;
+}
+
+impl<C> Clear for Image<'_, Bmp<'_, C>>
+where C: PixelColor
+{
+    fn clear_bounding_box(&self, display: &mut Display<SPIInterface<SpiDeviceWithConfig<NoopRawMutex, Spi<SPI1, Blocking>, Output>, Output>, ST7789, Output>, color: Rgb565) -> Result<(), ToRustAGaugeError> {
+        display.fill_solid(&self.bounding_box(), color).or(Err(ToRustAGaugeError::MipiDsiError()))
+    }
+}
+
+impl<S> Clear for Text<'_, S>
+where S: text::renderer::TextRenderer
+{
+    fn clear_bounding_box(&self, display: &mut Display<SPIInterface<SpiDeviceWithConfig<NoopRawMutex, Spi<SPI1, Blocking>, Output>, Output>, ST7789, Output>, color: Rgb565) -> Result<(), ToRustAGaugeError> {
+        display.fill_solid(&self.bounding_box(), color).or(Err(ToRustAGaugeError::MipiDsiError()))
+    }
+}
+
 
 
 
