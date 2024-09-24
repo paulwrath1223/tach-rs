@@ -18,10 +18,12 @@ use {defmt_rtt as _, panic_probe as _};
 use defmt::*;
 use embassy_sync::channel::Channel;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_time::Delay;
+use embedded_hal_async::delay::DelayNs;
 use crate::data_point::Datum;
 use crate::display::display_task;
 use crate::elm_uart::elm_uart_task;
-use crate::errors::ToRustAGaugeErrorWithSeverity;
+use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 
 pub static INCOMING_EVENT_CHANNEL: Channel<CriticalSectionRawMutex, ToMainEvents, 10> = Channel::new();
 
@@ -66,6 +68,7 @@ assign_resources! { // I hate this macro shit
     }
     display: DisplayPins{
         bl: PIN_13,
+        bl_pwm: PWM_SLICE6,
         rst: PIN_15,
         display_cs: PIN_9,
         dcx: PIN_8,

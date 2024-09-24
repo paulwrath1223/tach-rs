@@ -42,19 +42,25 @@ const COOLANT_TEXT_POINT: Point = Point::new(108, 134);
 const MAIN_TEXT_STYLE: MonoTextStyle<Rgb565> = MonoTextStyle::new(&profont::PROFONT_24_POINT, ORANG);
 
 const MIN_GOOD_VOLTAGE: f64 = 11f64;
+const BRIGHT_LIGHT_PWM: u16 = 0x8000;
+const DIM_LIGHT_PWM: u16 = 0x2000;
 
 #[embassy_executor::task]
 pub async fn display_task(r: DisplayPins) {
 
     info!("Hello from display task!");
-
-    let bl = r.bl;
+    
     let rst_resource = r.rst;
     let display_cs = r.display_cs;
     let dcx_resource = r.dcx;
     let miso = r.miso;
     let mosi = r.mosi;
     let clk = r.clk;
+
+    let mut c: embassy_rp::pwm::Config = Default::default();
+    c.top = 0x8000;
+    c.compare_b = BRIGHT_LIGHT_PWM;
+    let mut pwm = embassy_rp::pwm::Pwm::new_output_b(r.bl_pwm, r.bl, c.clone());
 
     // create SPI
     let mut display_config = spi::Config::default();
@@ -188,7 +194,18 @@ pub async fn display_task(r: DisplayPins) {
                 }
             }
             ToLcdEvents::IsBackLightOn(new_bl_state) => {
-                defmt::info!("received backlight state: {:?}", new_bl_state);
+                match new_bl_state{
+                    true => {
+                        c.compare_b = BRIGHT_LIGHT_PWM;
+                        pwm.set_config(&c);
+                        light_icon.draw(&mut display).expect("failed to draw light icon");
+                    }
+                    false => {
+                        c.compare_b = DIM_LIGHT_PWM;
+                        pwm.set_config(&c);
+                        light_icon.clear_bounding_box(&mut display, BG_COLOR).expect("failed to clear light icon");
+                    }
+                }
             }
             ToLcdEvents::Error(new_error) => {
                 match (&new_error, &last_error){
