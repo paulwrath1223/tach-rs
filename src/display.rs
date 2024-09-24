@@ -4,37 +4,43 @@
 //! (https://www.waveshare.com/wiki/Pico-ResTouch-LCD-2.8)
 
 use core::cell::RefCell;
-
 use defmt::*;
 use display_interface_spi::SPIInterface;
 use embassy_embedded_hal::shared_bus::blocking::spi::SpiDeviceWithConfig;
 
 use embassy_rp::gpio::{Level, Output};
-use embassy_rp::peripherals::SPI1;
 use embassy_rp::spi;
 use embassy_rp::spi::{Blocking, Spi};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_time::{Delay, Duration, Ticker};
-use embedded_graphics::image::{Image, ImageRawLE};
+use embedded_graphics::image::Image;
 use embedded_graphics::mono_font::ascii::FONT_10X20;
 use embedded_graphics::mono_font::MonoTextStyle;
-use embedded_graphics::pixelcolor::{Rgb565, Rgb888};
+use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::{Line, PrimitiveStyle, Rectangle};
-use embedded_graphics::{mono_font, text};
+use embedded_graphics::text;
 use embedded_graphics::text::Text;
-use mipidsi::Display;
 use mipidsi::models::ST7789;
 use mipidsi::options::{ColorInversion, Orientation};
 use {defmt_rtt as _, panic_probe as _};
 use crate::{DisplayPins, ToLcdEvents, LCD_EVENT_CHANNEL};
 use tinybmp::Bmp;
 use profont;
+use crate::byte_parsing::float_as_str;
 use crate::data_point::Datum;
 use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorWithSeverity};
 
 const DISPLAY_FREQ: u32 = 64_000_000;
+
+const BG_COLOR: Rgb565 = Rgb565::BLACK;
+const ORANG: Rgb565 = Rgb565::new(29, 24, 3);
+const VBAT_TEXT_POINT: Point = Point::new(108, 48);
+const COOLANT_TEXT_POINT: Point = Point::new(108, 134);
+const MAIN_TEXT_STYLE: MonoTextStyle<Rgb565> = MonoTextStyle::new(&profont::PROFONT_24_POINT, ORANG);
+
+const MIN_GOOD_VOLTAGE: f64 = 11f64;
 
 #[embassy_executor::task]
 pub async fn display_task(r: DisplayPins) {
@@ -62,12 +68,9 @@ pub async fn display_task(r: DisplayPins) {
     let spi_bus: Mutex<NoopRawMutex, _> = Mutex::new(RefCell::new(spi));
 
     let display_spi = SpiDeviceWithConfig::new(&spi_bus, Output::new(display_cs, Level::High), display_config);
-
-    let mut current_error: Option<ToRustAGaugeErrorWithSeverity> = None;
     
     let dcx = Output::new(dcx_resource, Level::Low);
     let rst = Output::new(rst_resource, Level::Low);
-    
 
     // display interface abstraction from SPI and DC
     let di = SPIInterface::new(display_spi, dcx);
@@ -89,11 +92,6 @@ pub async fn display_task(r: DisplayPins) {
 
     info!("initialized display");
 
-
-    let bg_color = Rgb565::BLACK;
-    let pure_orang = Rgb888::new(234, 94, 26);
-    let orang = Rgb565::from(pure_orang);
-
     let rust_logo_data: Bmp<Rgb565> = Bmp::from_slice(include_bytes!("../display_assets/Rust Logo Layer.bmp")).expect("failed to parse bmp");
     let rust_logo = Image::with_center(&rust_logo_data, Point::new(260, 128));
 
@@ -112,19 +110,17 @@ pub async fn display_task(r: DisplayPins) {
     let bad_vbat_icon_data: Bmp<Rgb565> = Bmp::from_slice(include_bytes!("../display_assets/Bad Battery Layer.bmp")).expect("failed to parse bmp");
     let bad_vbat_icon = Image::with_center(&bad_vbat_icon_data, Point::new(48, 42));
 
-    display.clear(bg_color).expect("failed to clear");
+    display.clear(BG_COLOR).expect("failed to clear");
 
     info!("initialized icons");
 
     // Display the image
 
 
-    let line_style = PrimitiveStyle::with_stroke(orang, 2);
-    let error_text_style = MonoTextStyle::new(&FONT_10X20, orang);
+    let line_style = PrimitiveStyle::with_stroke(ORANG, 2);
+    let error_text_style = MonoTextStyle::new(&FONT_10X20, ORANG);
 
-    let main_text_style = MonoTextStyle::new(&profont::PROFONT_24_POINT, orang);
-
-
+    
 
     Line::new(Point::new(200, 0), Point::new(200, 170))
         .into_styled(line_style)
@@ -136,23 +132,21 @@ pub async fn display_task(r: DisplayPins) {
 
     let mut ticker = Ticker::every(Duration::from_millis(50));
     
-    let error_quadrant_clear = Rectangle::with_corners(
-        Point::new(202, 87), Point::new(320, 170))
-        .into_styled(PrimitiveStyle::with_fill(bg_color));
+    let vbat_quadrant_clear = Rectangle::with_corners(
+        Point::new(0, 0), Point::new(198, 83))
+        .into_styled(PrimitiveStyle::with_fill(BG_COLOR));
+    
+    let coolant_text_clear = Rectangle::with_corners(
+        Point::new(106, 87), Point::new(198, 170))
+        .into_styled(PrimitiveStyle::with_fill(BG_COLOR));
     
     let mut last_error: Option<ToRustAGaugeErrorWithSeverity> = None;
 
     let mut counter: u64 = 0;
 
     let mut error_text = Text::new("Hello World\nLine 2??\nLine 3??\nLine 4??", Point::new(206, 103), error_text_style);
+    
 
-    let mut vbat_text = Text::new("?????", Point::new(108, 48), main_text_style);
-
-    vbat_text.text = "12.5V";
-
-    let mut coolant_temp_text = Text::new("?????", Point::new(108, 134), main_text_style);
-
-    coolant_temp_text.text = "105°C";
 
     rust_logo.draw(&mut display).expect("failed to draw rust_logo");
     coolant_temp_icon.draw(&mut display).expect("failed to draw coolant_temp_icon");
@@ -162,20 +156,27 @@ pub async fn display_task(r: DisplayPins) {
     // bad_vbat_icon.draw(&mut display).expect("failed to draw bad_vbat_icon");
 
     // error_text.draw(&mut display).expect("failed to draw error_text");
-    vbat_text.draw(&mut display).expect("failed to draw vbat_text");
-    coolant_temp_text.draw(&mut display).expect("failed to draw coolant_temp_text");
+    // vbat_text.draw(&mut display).expect("failed to draw vbat_text");
+    // coolant_temp_text.draw(&mut display).expect("failed to draw coolant_temp_text");
     
+    let mut local_str_buf = [0u8; 12];
     
-
     loop {
         match receiver.receive().await{
             ToLcdEvents::NewData(d) => {
                 match d.data{
                     Datum::VBat(v) => {
-                        
+                        vbat_quadrant_clear.draw(&mut display).expect("failed to clear vbat quadrant");
+                        if v > MIN_GOOD_VOLTAGE{
+                            good_vbat_icon.draw(&mut display).expect("failed to draw good_vbat_icon");
+                        } else {
+                            bad_vbat_icon.draw(&mut display).expect("failed to draw bad_vbat_icon");
+                        }
+                        draw_vbat_text(v, &mut display, &mut local_str_buf);
                     }
                     Datum::CoolantTempC(v) => {
-                        
+                        coolant_text_clear.draw(&mut display).expect("failed to clear coolant text");
+                        draw_coolant_temp_text(v, &mut display, &mut local_str_buf);
                     }
                     _ => {
                         defmt::error!("LCD received unknown datum (not Vbat or Coolant temp)");
@@ -188,20 +189,20 @@ pub async fn display_task(r: DisplayPins) {
             ToLcdEvents::Error(new_error) => {
                 match (&new_error, &last_error){
                     (Some(some_new_error), Some(_last_error)) => {
-                        error_text.clear_bounding_box(&mut display, bg_color).expect("failed to clear text");
+                        error_text.clear_bounding_box(&mut display, BG_COLOR).expect("failed to clear text");
                         error_text.text = some_new_error.error.to_str();
                         error_text.draw(&mut display).expect("failed to draw error_text");
                     }
                     (Some(some_new_error), None) => {
-                        rust_logo.clear_bounding_box(&mut display, bg_color).expect("failed to clear rust logo");
+                        rust_logo.clear_bounding_box(&mut display, BG_COLOR).expect("failed to clear rust logo");
                         error_text.text = some_new_error.error.to_str();
                         error_text.draw(&mut display).expect("failed to draw error_text");
                         warning_icon.draw(&mut display).expect("failed to draw warning icon");
                     }
                     (None, Some(_last_error)) => {
-                        error_text.clear_bounding_box(&mut display, bg_color).expect("failed to clear text");
+                        error_text.clear_bounding_box(&mut display, BG_COLOR).expect("failed to clear text");
                         rust_logo.draw(&mut display).expect("failed to draw ferris in error quad");
-                        warning_icon.clear_bounding_box(&mut display, bg_color).expect("failed to clear warning_icon");
+                        warning_icon.clear_bounding_box(&mut display, BG_COLOR).expect("failed to clear warning icon");
                     }
                     _ => {
                         
@@ -218,25 +219,53 @@ pub async fn display_task(r: DisplayPins) {
 
     }
 }
-
-pub trait Clear
-where Self: Dimensions
+const COOLANT_TEMP_UTF_8_UNIT_STR: [u8; 3] = [0xC2, 0xB0, b'C'];
+const VBAT_UTF_8_UNIT_STR: u8 = b'V';
+fn draw_vbat_text<D>(vbat_val: f64, display_ref: &mut D, byte_buf: &mut [u8])
+where D: DrawTarget<Color = Rgb565>, D::Error: core::fmt::Debug
 {
-    fn clear_bounding_box(&self, display: &mut Display<SPIInterface<SpiDeviceWithConfig<NoopRawMutex, Spi<SPI1, Blocking>, Output>, Output>, ST7789, Output>, color: Rgb565) -> Result<(), ToRustAGaugeError>;
+    let end_index = float_as_str(vbat_val, byte_buf, 1, -1);
+    byte_buf[end_index] = VBAT_UTF_8_UNIT_STR;
+    let text_str_ref = core::str::from_utf8(&byte_buf[..end_index+1]).expect("failed to interpret vbat_str_buffer as utf-8;");
+    let text_obj = Text::new(text_str_ref, VBAT_TEXT_POINT, MAIN_TEXT_STYLE);
+    text_obj.draw(display_ref).expect("failed to draw vbat text");
 }
 
-impl<C> Clear for Image<'_, Bmp<'_, C>>
-where C: PixelColor
+fn draw_coolant_temp_text<D>(coolant_temp: f64, display_ref: &mut D, byte_buf: &mut [u8])
+where D: DrawTarget<Color = Rgb565>, D::Error: core::fmt::Debug
 {
-    fn clear_bounding_box(&self, display: &mut Display<SPIInterface<SpiDeviceWithConfig<NoopRawMutex, Spi<SPI1, Blocking>, Output>, Output>, ST7789, Output>, color: Rgb565) -> Result<(), ToRustAGaugeError> {
+    let end_index = float_as_str(coolant_temp, byte_buf, 2, 0);
+    byte_buf[end_index..end_index+3].copy_from_slice(&COOLANT_TEMP_UTF_8_UNIT_STR);
+    let text_str_ref = core::str::from_utf8(&byte_buf[..end_index+3]).expect("failed to interpret coolant_str_buffer as utf-8;");
+    let text_obj = Text::new(text_str_ref, COOLANT_TEXT_POINT, MAIN_TEXT_STYLE);
+    text_obj.draw(display_ref).expect("failed to draw vbat text");
+}
+
+
+
+
+
+
+
+
+pub trait Clear<D>
+where Self: Dimensions, D: DrawTarget<Color = Rgb565>
+{
+    fn clear_bounding_box(&self, display: &mut D, color: Rgb565) -> Result<(), ToRustAGaugeError>;
+}
+
+impl<C, D> Clear<D> for Image<'_, Bmp<'_, C>>
+where C: PixelColor, D: DrawTarget<Color = Rgb565>
+{
+    fn clear_bounding_box(&self, display: &mut D, color: Rgb565) -> Result<(), ToRustAGaugeError> {
         display.fill_solid(&self.bounding_box(), color).or(Err(ToRustAGaugeError::MipiDsiError()))
     }
 }
 
-impl<S> Clear for Text<'_, S>
-where S: text::renderer::TextRenderer
+impl<S, D> Clear<D> for Text<'_, S>
+where S: text::renderer::TextRenderer, D: DrawTarget<Color = Rgb565>
 {
-    fn clear_bounding_box(&self, display: &mut Display<SPIInterface<SpiDeviceWithConfig<NoopRawMutex, Spi<SPI1, Blocking>, Output>, Output>, ST7789, Output>, color: Rgb565) -> Result<(), ToRustAGaugeError> {
+    fn clear_bounding_box(&self, display: &mut D, color: Rgb565) -> Result<(), ToRustAGaugeError> {
         display.fill_solid(&self.bounding_box(), color).or(Err(ToRustAGaugeError::MipiDsiError()))
     }
 }
