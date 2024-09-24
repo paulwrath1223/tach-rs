@@ -151,7 +151,7 @@ pub async fn elm_uart_task(r: ElmUart){
                 }
                 None => {}
             }
-
+        } else if loop_counter & 0x0F == 0x08 {
             match result_unpacker(
                 get_voltage(
                     &mut uart,

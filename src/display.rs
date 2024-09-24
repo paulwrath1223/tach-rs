@@ -11,8 +11,9 @@ use embassy_embedded_hal::shared_bus::blocking::spi::SpiDeviceWithConfig;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::spi;
 use embassy_rp::spi::{Blocking, Spi};
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex};
 use embassy_sync::blocking_mutex::Mutex;
+use embassy_sync::channel::Sender;
 use embassy_time::{Delay, Duration, Ticker};
 use embedded_graphics::image::Image;
 use embedded_graphics::mono_font::ascii::FONT_10X20;
@@ -25,7 +26,7 @@ use embedded_graphics::text::Text;
 use mipidsi::models::ST7789;
 use mipidsi::options::{ColorInversion, Orientation};
 use {defmt_rtt as _, panic_probe as _};
-use crate::{DisplayPins, ToLcdEvents, LCD_EVENT_CHANNEL};
+use crate::{DisplayPins, ToLcdEvents, ToMainEvents, INCOMING_EVENT_CHANNEL, LCD_EVENT_CHANNEL};
 use tinybmp::Bmp;
 use profont;
 use crate::byte_parsing::float_as_str;
@@ -62,6 +63,7 @@ pub async fn display_task(r: DisplayPins) {
     display_config.polarity = spi::Polarity::IdleHigh;
     
     let receiver = LCD_EVENT_CHANNEL.receiver();
+    let sender: Sender<CriticalSectionRawMutex, ToMainEvents, 10> = INCOMING_EVENT_CHANNEL.sender();
 
 
     let spi: Spi<'_, _, Blocking> = Spi::new_blocking(r.spi_resource, clk, mosi, miso, display_config.clone());
@@ -161,6 +163,8 @@ pub async fn display_task(r: DisplayPins) {
     
     let mut local_str_buf = [0u8; 12];
     
+    sender.send(ToMainEvents::LcdInitComplete).await;
+    
     loop {
         match receiver.receive().await{
             ToLcdEvents::NewData(d) => {
@@ -184,7 +188,7 @@ pub async fn display_task(r: DisplayPins) {
                 }
             }
             ToLcdEvents::IsBackLightOn(new_bl_state) => {
-                defmt::todo!();
+                defmt::info!("received backlight state: {:?}", new_bl_state);
             }
             ToLcdEvents::Error(new_error) => {
                 match (&new_error, &last_error){
