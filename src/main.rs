@@ -11,11 +11,9 @@ mod display;
 mod byte_parsing;
 
 use embassy_executor::Spawner;
-use embassy_rp::{bind_interrupts, install_core0_stack_guard};
+use embassy_rp::{bind_interrupts};
 use assign_resources::assign_resources;
-use embassy_rp::peripherals::{self, USB, PIO0};
-use embassy_rp::usb::Driver;
-use embassy_time::Timer;
+use embassy_rp::peripherals;
 use {defmt_rtt as _, panic_probe as _};
 use defmt::*;
 use embassy_sync::channel::Channel;
