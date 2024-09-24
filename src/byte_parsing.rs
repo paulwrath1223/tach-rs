@@ -1,6 +1,5 @@
 use core::fmt::{Debug, Formatter};
 use core::marker::PhantomData;
-use embassy_rp::rom_data::reset_to_usb_boot;
 use crate::errors::ToRustAGaugeError;
 
 pub trait BufferMode {}
@@ -193,6 +192,66 @@ pub fn parse_voltage(buffer: &mut SizedUartBuffer<CharByte>) -> Result<f64, ToRu
 }
 
 
+/// for a number: 420.69, place 0 is `0`, place 1 is `2`, place 2 is `4`, place -1 is `6`, place -2 is `9`. 
+/// Places are inclusive so parsing 420.69 with `place_start` = 2 and `place_end` = -1 yields `"420.6"` 
+/// Relies on caller to ensure that buffer is at least `place_start - place_end + 1` long. (+ one more if there's a decimal point) 
+/// The result can only last until this function is called again (at least with the same buffer)
+/// Returns the index of the first not included byte from the buffer such that the result is `buffer[..usize]`
+pub fn float_as_str(float: f64, buffer: &mut [u8], place_start: i8, place_end: i8) -> usize{
+
+    assert!(place_start >= place_end, "place start must be most significant place");
+    debug_assert!(buffer.len() > ((place_start - place_end) + 1) as usize);
+    const ASCII_DIGIT_OFFSET: u8 = 0x30;
+
+    let mut buf_index: usize = 0;
+    for i in place_end..=place_start{
+        let digit_as_value = ((float / powi(10f64, i as i32)) % 10f64) as u8;
+        buffer[buf_index] = digit_as_value + ASCII_DIGIT_OFFSET;
+        buf_index += 1;
+        if i == -1{
+            buffer[buf_index] = b'.';
+            buf_index += 1;
+        }
+    }
+    let ascii_buf_slice = &mut buffer[0..buf_index];
+    ascii_buf_slice.reverse();
+    buf_index
+}
+
+/// stolen from [Micromath.rs](https://github.com/tarcieri/micromath) with some simplifications to reduce dependencies.
+/// (Yes I stole multiplication in a for loop, suck my cock)
+pub fn powi(float: f64, n: i32) -> f64 {
+    let mut base = float;
+    let mut abs_n = i32::abs(n);
+    let mut result = 1f64;
+
+    if n < 0 {
+        base = 1.0 / float;
+    }
+
+    if n == 0 {
+        return 1f64;
+    }
+
+    // 0.0 == 0.0 and -0.0 according to IEEE standards.
+    if float == 0f64 && n > 0 {
+        return float;
+    }
+
+    loop {
+        if (abs_n & 1) == 1 {
+            result *= base;
+        }
+
+        abs_n >>= 1;
+
+        if abs_n == 0 {
+            return result;
+        }
+
+        base *= base;
+    }
+}
 
 
 #[cfg(test)]
@@ -228,5 +287,14 @@ mod tests {
         parsed_byte_buf.populate_from_hex_digit_buffer(&hex_buf).unwrap();
 
         defmt::println!("{:?}", parsed_byte_buf)
+    }
+
+    #[test]
+    fn test_float_to_str() {
+        let mut local_buffer = [0u8; 12];
+        let str_len = float_as_str(420.69f64, &mut local_buffer, 2, 0);
+        let str_ref = core::str::from_utf8(&local_buffer[..str_len]).unwrap();
+        let expected = "420";
+        assert_eq!(str_ref, expected, "brother...");
     }
 }
