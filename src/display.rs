@@ -84,8 +84,7 @@ pub async fn display_task(r: DisplayPins) {
     let di = SPIInterface::new(display_spi, dcx);
 
     let display_orientation = Orientation::new().rotate(mipidsi::options::Rotation::Deg90);
-
-    // create driver
+    
     let mut display = mipidsi::Builder::new(ST7789, di)
         .reset_pin(rst)
         .display_size(170, 320)
@@ -94,10 +93,7 @@ pub async fn display_task(r: DisplayPins) {
         .orientation(display_orientation)
         .init(&mut Delay)
         .expect("failed to initialize display");
-
-
-    // initialize
-
+    
     info!("initialized display");
 
     let rust_logo_data: Bmp<Rgb565> = Bmp::from_slice(include_bytes!("../display_assets/Rust Logo Layer.bmp")).expect("failed to parse bmp");
@@ -119,12 +115,8 @@ pub async fn display_task(r: DisplayPins) {
     let bad_vbat_icon = Image::with_center(&bad_vbat_icon_data, Point::new(48, 42));
 
     display.clear(BG_COLOR).expect("failed to clear");
-
     info!("initialized icons");
-
-    // Display the image
-
-
+    
     let line_style = PrimitiveStyle::with_stroke(ORANG, 2);
     let error_text_style = MonoTextStyle::new(&FONT_10X20, ORANG);
 
@@ -161,11 +153,6 @@ pub async fn display_task(r: DisplayPins) {
     warning_icon.draw(&mut display).expect("failed to draw warning_icon");
     light_icon.draw(&mut display).expect("failed to draw light_icon");
     good_vbat_icon.draw(&mut display).expect("failed to draw good_vbat_icon");
-    // bad_vbat_icon.draw(&mut display).expect("failed to draw bad_vbat_icon");
-
-    // error_text.draw(&mut display).expect("failed to draw error_text");
-    // vbat_text.draw(&mut display).expect("failed to draw vbat_text");
-    // coolant_temp_text.draw(&mut display).expect("failed to draw coolant_temp_text");
     
     let mut local_str_buf = [0u8; 12];
     

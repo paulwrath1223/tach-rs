@@ -18,8 +18,6 @@ use {defmt_rtt as _, panic_probe as _};
 use defmt::*;
 use embassy_sync::channel::Channel;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_time::Delay;
-use embedded_hal_async::delay::DelayNs;
 use crate::data_point::Datum;
 use crate::display::display_task;
 use crate::elm_uart::elm_uart_task;
@@ -80,14 +78,10 @@ assign_resources! { // I hate this macro shit
 }
 
 bind_interrupts!(struct Irqs {
-    // USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<USB>;
     UART0_IRQ => embassy_rp::uart::InterruptHandler<peripherals::UART0>;
 });
 
-// #[embassy_executor::task]
-// async fn logger_task(driver: Driver<'static, USB>) {
-//     embassy_usb_logger::run!(1024, log::LevelFilter::Info, driver);
-// }
+
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
