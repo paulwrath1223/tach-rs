@@ -9,6 +9,9 @@ mod elm_uart;
 mod errors;
 mod display;
 mod byte_parsing;
+mod gauge;
+mod pio_stepper;
+mod ws2812;
 
 use embassy_executor::Spawner;
 use embassy_rp::{bind_interrupts};
@@ -22,6 +25,7 @@ use crate::data_point::Datum;
 use crate::display::display_task;
 use crate::elm_uart::elm_uart_task;
 use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
+use crate::gauge::gauge_task;
 
 pub static INCOMING_EVENT_CHANNEL: Channel<CriticalSectionRawMutex, ToMainEvents, 10> = Channel::new();
 
@@ -43,11 +47,13 @@ pub enum ToLcdEvents {
     IsBackLightOn(bool),
 }
 
+pub static GAUGE_EVENT_CHANNEL: Channel<CriticalSectionRawMutex, ToLcdEvents, 10> = Channel::new();
+pub enum ToGaugeEvents {
+    NewData(data_point::DataPoint),
+    IsBackLightOn(bool),
+}
+
 assign_resources! { // I hate this macro shit
-    // led_ring: LedRing{
-    //     data_pin: PIN_23,
-    //     dma: DMA_CH0,
-    // },
     elm_uart: ElmUart{
         tx_pin: PIN_0,
         rx_pin: PIN_1,
@@ -58,11 +64,15 @@ assign_resources! { // I hate this macro shit
     backlight_adc: BacklightAdc{
         adc_pin: PIN_14,
     },
-    stepper: StepperPins{
-        a1_pin: PIN_4,
-        a2_pin: PIN_5,
-        b1_pin: PIN_6,
-        b2_pin: PIN_7,
+    gauge: GaugePins{
+        stepper_a1_pin: PIN_4,
+        stepper_a2_pin: PIN_5,
+        stepper_b1_pin: PIN_6,
+        stepper_b2_pin: PIN_7,
+        neo_pixel: PIN_3,
+        stepper_pio: PIO0,
+        led_pio: PIO1,
+        led_dma: DMA_CH3
     }
     display: DisplayPins{
         bl: PIN_13,
@@ -79,6 +89,8 @@ assign_resources! { // I hate this macro shit
 
 bind_interrupts!(struct Irqs {
     UART0_IRQ => embassy_rp::uart::InterruptHandler<peripherals::UART0>;
+    PIO0_IRQ_0 => embassy_rp::pio::InterruptHandler<peripherals::PIO0>; // stepper
+    PIO1_IRQ_0 => embassy_rp::pio::InterruptHandler<peripherals::PIO1>; // ws2812
 });
 
 
@@ -88,14 +100,18 @@ async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
     let r = split_resources!(p);
+
+    
     let mut is_backlight_on = false;
     
     let receiver = INCOMING_EVENT_CHANNEL.receiver();
-    
+
+    spawner.spawn(gauge_task(r.gauge)).expect("failed to spawn elm uart task");
     spawner.spawn(elm_uart_task(r.elm_uart)).expect("failed to spawn elm uart task");
     spawner.spawn(display_task(r.display)).expect("failed to spawn display task");
     
     let lcd_sender = LCD_EVENT_CHANNEL.sender();
+    let gauge_sender = GAUGE_EVENT_CHANNEL.sender();
     
     let mut is_gauge_init: bool = true; // until gauge is implemented
     let mut is_lcd_init: bool = false;
