@@ -29,12 +29,18 @@ pub enum ToRustAGaugeError {
     UartVoltageParseError(),
     #[error("Error communicating with LCD")]
     MipiDsiError(),
-    #[error("RPM data does NOT pass the vibe check")]
+    #[error("RPM data does NOT pass the vibe check. This data is guaranteed to be impossible.")]
     UnreliableRPM(),
-    #[error("VBAT data does NOT pass the vibe check")]
+    #[error("VBAT data does NOT pass the vibe check. This data is guaranteed to be impossible.")]
     UnreliableVBAT(),
-    #[error("Coolant data does NOT pass the vibe check")]
+    #[error("Coolant data does NOT pass the vibe check. This data is guaranteed to be impossible.")]
     UnreliableCoolant(),
+    #[error("RPM data does NOT pass the vibe check. This data is either bad, or there is a vehicle issue.")]
+    StrangeRPM(),
+    #[error("VBAT data does NOT pass the vibe check. This data is either bad, or there is a vehicle issue.")]
+    StrangeVBAT(),
+    #[error("Coolant data does NOT pass the vibe check. This data is either bad, or there is a vehicle issue.")]
+    StrangeCoolant(),
     
 }
 
@@ -48,10 +54,13 @@ const UART_INCORRECT_LENGTH_ERROR_STR: &'static str = "UART resp. \nincluded   \
 const UART_PID_MISMATCH_ERROR_STR: &'static str =     "UART resp. \nincluded   \nwrong PID  \n           ";
 const UART_VOLTAGE_PARSE_ERROR_STR: &'static str =    "UART soft- \nware failed\nto parse   \nvoltage!   ";
 const MIPI_DSI_ERROR_STR: &'static str =              "LCD Error! \nSPI commun-\nication    \nfailure!   ";
-const UNRELIABLE_RPM: &'static str =                  "Unreliable \nRPM data!  \nCaution!   \n           ";
-const UNRELIABLE_VBAT: &'static str =                 "Unreliable \nVBAT data! \nCaution!   \n           ";
-const UNRELIABLE_COOLANT: &'static str =              "Unreliable \nTemp data! \nCaution!   \n           ";
-
+const UNRELIABLE_RPM: &'static str =                  "Unreliable \nRPM data!  \nIgnoring!  \n           ";
+const UNRELIABLE_VBAT: &'static str =                 "Unreliable \nVBAT data! \nIgnoring!  \n           ";
+const UNRELIABLE_COOLANT: &'static str =              "Unreliable \nTemp data! \nIgnoring!  \n           ";
+const STRANGE_RPM: &'static str =                     "Weird RPM  \ndata! Maybe\nreal but   \nProblematic";
+const STRANGE_VBAT: &'static str =                    "Weird VBAT \ndata! Maybe\nreal but   \nProblematic";
+const STRANGE_COOLANT: &'static str =                 "Weird Temp \ndata! Maybe\nreal but   \nProblematic";
+    
 
 
 impl ToRustAGaugeError{
@@ -71,6 +80,9 @@ impl ToRustAGaugeError{
             ToRustAGaugeError::UnreliableRPM() => { UNRELIABLE_RPM }
             ToRustAGaugeError::UnreliableVBAT() => { UNRELIABLE_VBAT }
             ToRustAGaugeError::UnreliableCoolant() => { UNRELIABLE_COOLANT }
+            ToRustAGaugeError::StrangeRPM() => { STRANGE_RPM }
+            ToRustAGaugeError::StrangeVBAT() => { STRANGE_VBAT }
+            ToRustAGaugeError::StrangeCoolant() => { STRANGE_COOLANT }
         }
     }
 }

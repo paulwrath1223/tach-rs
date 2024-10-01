@@ -167,52 +167,62 @@ async fn main(spawner: embassy_executor::Spawner) {
                 }
                 match d.data{
                     Datum::RPM(rpm) => {
-                        if is_gauge_init{
-                            if !d.data.is_value_sane_check(){
-                                defmt::error!("Insane RPM value: {}, ignoring", rpm);
+                        if !d.data.is_value_sane_check(){
+                            defmt::error!("Insane RPM value: {}, ignoring", rpm);
+                            error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                                error: ToRustAGaugeError::UnreliableRPM(),
+                                severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
+                            });
+                        } else {
+                            if !d.data.is_value_normal() {
+                                defmt::warn!("Received value of dubious validity: {}", d.data);
                                 error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
-                                    error: ToRustAGaugeError::UnreliableRPM(),
-                                    severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
+                                    error: ToRustAGaugeError::StrangeRPM(),
+                                    severity: ToRustAGaugeErrorSeverity::MaybeRecoverable,
                                 });
-                            } else {
-                                if !d.data.is_value_normal() {
-                                    defmt::warn!("Received value of dubious validity: {}", rpm);
-                                }
+                            }
+                            if is_gauge_init {
                                 gauge_sender.send(ToGaugeEvents::NewData(d)).await;
                             }
                         }
                     }
-                    _ => {
-                        if is_lcd_init{
-                            if d.data.is_value_sane_check(){
-                                if !d.data.is_value_normal() {
-                                    defmt::warn!("Received value of dubious validity: {}", d);
-                                }
+                    Datum::VBat(vbat) => {
+                        if !d.data.is_value_sane_check(){
+                            defmt::error!("Insane VBAT value: {}, ignoring", vbat);
+                            error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                                error: ToRustAGaugeError::UnreliableVBAT(),
+                                severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
+                            });
+                        } else {
+                            if !d.data.is_value_normal() {
+                                defmt::warn!("Received value of dubious validity: {}", d.data);
+                                error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                                    error: ToRustAGaugeError::StrangeVBAT(),
+                                    severity: ToRustAGaugeErrorSeverity::MaybeRecoverable,
+                                });
+                            }
+                            if is_lcd_init {
                                 lcd_sender.send(ToLcdEvents::NewData(d)).await;
-                            } else {
-                                defmt::error!("Insane data point: {}, skipping", d);
-                                match d.data{
-                                    Datum::RPM(_) => {
-                                        error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
-                                            error: ToRustAGaugeError::UnreliableRPM(),
-                                            severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
-                                        });
-                                    }
-                                    Datum::VBat(_) => {
-                                        error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
-                                            error: ToRustAGaugeError::UnreliableVBAT(),
-                                            severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
-                                        });
-                                    }
-                                    Datum::CoolantTempC(_) => {
-                                        error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
-                                            error: ToRustAGaugeError::UnreliableCoolant(),
-                                            severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
-                                        });
-                                    }// below lies the staircase to hell. 
-                                    // Despite the massive harpy sized nest, 
-                                    // I think the code is fairly readable and not worth reformatting.
-                                }
+                            }
+                        }
+                    }
+                    Datum::CoolantTempC(temperature) => {
+                        if !d.data.is_value_sane_check(){
+                            defmt::error!("Insane coolant temperature value: {}, ignoring", temperature);
+                            error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                                error: ToRustAGaugeError::UnreliableCoolant(),
+                                severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
+                            });
+                        } else {
+                            if !d.data.is_value_normal() {
+                                defmt::warn!("Received value of dubious validity: {}", d.data);
+                                error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                                    error: ToRustAGaugeError::StrangeCoolant(),
+                                    severity: ToRustAGaugeErrorSeverity::MaybeRecoverable,
+                                });
+                            }
+                            if is_lcd_init {
+                                lcd_sender.send(ToLcdEvents::NewData(d)).await;
                             }
                         }
                     }
