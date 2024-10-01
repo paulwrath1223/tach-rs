@@ -4,6 +4,8 @@ use embassy_rp::pio::Pio;
 use smart_leds::RGB8;
 use crate::{GaugePins, Irqs, ToGaugeEvents, ToLcdEvents, ToMainEvents, GAUGE_EVENT_CHANNEL, INCOMING_EVENT_CHANNEL};
 use crate::data_point::{DataPoint, Datum};
+use crate::errors::ToRustAGaugeError::UnreliableRPM;
+use crate::errors::{ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 use crate::pio_stepper::PioStepper;
 use crate::ws2812::Ws2812;
 const STEPPER_SM: usize = 0;
@@ -61,15 +63,8 @@ pub async fn gauge_task(r: GaugePins) {
             ToGaugeEvents::NewData(data) => {
                 match data.data {
                     Datum::RPM(rpm) => {
-                        if !data.data.is_value_sane_check(){
-                            defmt::error!("Gauge received insane RPM value: {}, ignoring", rpm);
-                        } else {
-                            if !data.data.is_value_normal(){
-                                defmt::warn!("Gauge received value of dubious validity: {}", rpm);
-                            }
-                            do_backlight(&mut neo_p_data, rpm, is_backlight_on);
-                            join(ws2812.write(&neo_p_data), stepper.set_position_from_val(rpm)).await;
-                        }
+                        do_backlight(&mut neo_p_data, rpm, is_backlight_on);
+                        join(ws2812.write(&neo_p_data), stepper.set_position_from_val(rpm)).await;
                     }
                     _ => {defmt::error!("Gauge received data point containing data that isn't RPM. Ignoring")}
                 }

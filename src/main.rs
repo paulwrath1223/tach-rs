@@ -96,7 +96,7 @@ bind_interrupts!(struct Irqs {
 
 
 #[embassy_executor::main]
-async fn main(spawner: Spawner) {
+async fn main(spawner: embassy_executor::Spawner) {
     let p = embassy_rp::init(Default::default());
 
     let r = split_resources!(p);
@@ -146,18 +146,30 @@ async fn main(spawner: Spawner) {
             ToMainEvents::ElmDataPoint(d) => {
                 info!("Elm data point: {:?}", d);
                 match d.data{
-                    Datum::RPM(_) => {
+                    Datum::RPM(rpm) => {
                         if is_gauge_init{
-                            gauge_sender.send(ToGaugeEvents::NewData(d)).await;
+                            if !d.data.is_value_sane_check(){
+                                defmt::error!("Insane RPM value: {}, ignoring", rpm);
+                            } else {
+                                if !d.data.is_value_normal() {
+                                    defmt::warn!("Received value of dubious validity: {}", rpm);
+                                }
+                                gauge_sender.send(ToGaugeEvents::NewData(d)).await;
+                            }
                         }
                     }
                     _ => {
                         if is_lcd_init{
                             if d.data.is_value_sane_check(){
+                                if !d.data.is_value_normal() {
+                                    defmt::warn!("Received value of dubious validity: {}", d);
+                                }
                                 lcd_sender.send(ToLcdEvents::NewData(d)).await;
                             } else {
-                                defmt::error!("Insane data point: {:?}", d);
-                            }
+                                defmt::error!("Insane data point: {}, skipping", d);
+                            } // below lies the staircase to hell. 
+                            // Despite the massive harpy sized nest, 
+                            // I think the code is fairly readable and not worth reformatting.
                         }
                     }
                 }
