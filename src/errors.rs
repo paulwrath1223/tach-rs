@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::fmt::{Debug, Formatter};
 use thiserror_no_std::Error;
 
@@ -5,7 +6,7 @@ use thiserror_no_std::Error;
 // TODO: WTF is this file. Valve pls fix
 /// macro would be nice here, but rust macro language is on the same spiritual level as [DreamBerd](https://github.com/TodePond/DreamBerd)
 
-#[derive(Error, Debug, defmt::Format, PartialEq)]
+#[derive(Error, Debug, defmt::Format, PartialEq, Clone)]
 pub enum ToRustAGaugeError {
     #[error("Nondescript error")]
     NondescriptError(),
@@ -75,14 +76,15 @@ impl ToRustAGaugeError{
 }
 
 #[repr(u8)]
-#[derive(Debug, defmt::Format, PartialEq)]
+#[derive(Debug, defmt::Format, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum ToRustAGaugeErrorSeverity {
-    CompleteFailure,
-    LossOfSomeFunctionality,
-    BadIfReoccurring,
-    EntirelyRecoverable,
-    MaybeRecoverable,
+    CompleteFailure = 10,
+    LossOfSomeFunctionality = 9,
+    MaybeRecoverable = 8,
+    BadIfReoccurring = 7,
+    EntirelyRecoverable = 2,
 }
+
 
 impl ToRustAGaugeErrorWithSeverity {
     pub fn from_with_severity<E>(error: E, severity: ToRustAGaugeErrorSeverity) -> Self 
@@ -95,7 +97,7 @@ impl ToRustAGaugeErrorWithSeverity {
     }
 }
 
-#[derive(defmt::Format, PartialEq)]
+#[derive(defmt::Format, PartialEq, Clone)]
 pub struct ToRustAGaugeErrorWithSeverity {
     pub error: ToRustAGaugeError,
     pub severity: ToRustAGaugeErrorSeverity,

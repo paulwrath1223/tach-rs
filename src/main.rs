@@ -12,6 +12,7 @@ mod byte_parsing;
 mod gauge;
 mod pio_stepper;
 mod ws2812;
+mod error_lifetime;
 
 use embassy_executor::Spawner;
 use embassy_rp::{bind_interrupts};
@@ -145,6 +146,10 @@ async fn main(spawner: embassy_executor::Spawner) {
             }
             ToMainEvents::ElmDataPoint(d) => {
                 info!("Elm data point: {:?}", d);
+                let gauge_channel_fifo_length = GAUGE_EVENT_CHANNEL.len();
+                if gauge_channel_fifo_length > 4 {
+                    defmt::warn!("Gauge event channel overflow. Length: {}", gauge_channel_fifo_length);
+                }
                 match d.data{
                     Datum::RPM(rpm) => {
                         if is_gauge_init{
@@ -167,7 +172,8 @@ async fn main(spawner: embassy_executor::Spawner) {
                                 lcd_sender.send(ToLcdEvents::NewData(d)).await;
                             } else {
                                 defmt::error!("Insane data point: {}, skipping", d);
-                            } // below lies the staircase to hell. 
+                            }
+                            // below lies the staircase to hell. 
                             // Despite the massive harpy sized nest, 
                             // I think the code is fairly readable and not worth reformatting.
                         }

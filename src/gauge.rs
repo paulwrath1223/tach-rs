@@ -15,6 +15,8 @@ const LED_ZERO_OFFSET: usize = 12;
 
 const WHITE: RGB8 = RGB8 { r: 255, g: 255, b: 255 };
 const BLACK: RGB8 = RGB8 { r: 0, g: 0, b: 0 };
+const BACKLIGHT_BRIGHT_BRIGHTNESS_MULTIPLIER: f32 = 1.0;
+const BACKLIGHT_DIM_BRIGHTNESS_MULTIPLIER: f32 = 0.5;
 #[embassy_executor::task]
 pub async fn gauge_task(r: GaugePins) {
     let receiver = GAUGE_EVENT_CHANNEL.receiver();
@@ -119,8 +121,14 @@ impl<'a, T: embassy_rp::pio::Instance> PositionalStepper<'a, T> {
 }
 
 fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: bool){
+    
     let normalized_val: usize = (19.0 * value / 9000.0).clamp(0.0, 19.0) as usize;
-    let dim_factor: f32 = if is_backlight_on {1.0} else {0.5};
+    
+    let dim_factor: f32 = if is_backlight_on {
+        BACKLIGHT_BRIGHT_BRIGHTNESS_MULTIPLIER
+    } else {
+        BACKLIGHT_DIM_BRIGHTNESS_MULTIPLIER
+    };
     
     for i in 0..NUM_LEDS {
         let offset_index = (i + LED_ZERO_OFFSET) % NUM_LEDS;
