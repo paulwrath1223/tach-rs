@@ -14,7 +14,6 @@ mod pio_stepper;
 mod ws2812;
 mod error_lifetime;
 
-use embassy_executor::Spawner;
 use embassy_rp::{bind_interrupts};
 use assign_resources::assign_resources;
 use embassy_rp::peripherals;
@@ -25,8 +24,12 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use crate::data_point::Datum;
 use crate::display::display_task;
 use crate::elm_uart::elm_uart_task;
-use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 use crate::gauge::gauge_task;
+use crate::error_lifetime::ErrorFifo;
+use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
+
+const ERROR_CHECKING_INTERVAL: embassy_time::Duration = embassy_time::Duration::from_millis(1000); // error checking will wait at least this long, maybe more
+
 
 pub static INCOMING_EVENT_CHANNEL: Channel<CriticalSectionRawMutex, ToMainEvents, 10> = Channel::new();
 
@@ -114,12 +117,22 @@ async fn main(spawner: embassy_executor::Spawner) {
     let lcd_sender = LCD_EVENT_CHANNEL.sender();
     let gauge_sender = GAUGE_EVENT_CHANNEL.sender();
     
+    let mut error_fifo = ErrorFifo::new();
+    
     let mut is_gauge_init: bool = false;
     let mut is_lcd_init: bool = false;
-    let mut is_elm_init: bool = false;
+    
+    let mut last_error_check: embassy_time::Instant = embassy_time::Instant::now();
     
     loop {
         let event = receiver.receive().await;
+        
+        if last_error_check.elapsed() > ERROR_CHECKING_INTERVAL {
+            last_error_check = embassy_time::Instant::now();
+            error_fifo.clear_inactive();
+            lcd_sender.send(ToLcdEvents::Error(error_fifo.get_most_relevant_error())).await;
+        }
+        
         match event{
             ToMainEvents::GaugeInitComplete => {
                 info!("Gauge initialized");
@@ -128,6 +141,7 @@ async fn main(spawner: embassy_executor::Spawner) {
             }
             ToMainEvents::GaugeError(e) => {
                 warn!("Gauge error: {:?}", e);
+                error_fifo.add_and_update(e);
             }
             ToMainEvents::LcdInitComplete => {
                 info!("LCD initialized");
@@ -136,13 +150,14 @@ async fn main(spawner: embassy_executor::Spawner) {
             }
             ToMainEvents::LcdError(e) => {
                 warn!("LCD error: {:?}", e);
+                error_fifo.add_and_update(e);
             }
             ToMainEvents::ElmInitComplete => {
                 info!("Elm initialized");
-                is_elm_init = true;
             }
             ToMainEvents::ElmError(e) => {
                 warn!("Elm error: {:?}", e);
+                error_fifo.add_and_update(e);
             }
             ToMainEvents::ElmDataPoint(d) => {
                 info!("Elm data point: {:?}", d);
@@ -155,6 +170,10 @@ async fn main(spawner: embassy_executor::Spawner) {
                         if is_gauge_init{
                             if !d.data.is_value_sane_check(){
                                 defmt::error!("Insane RPM value: {}, ignoring", rpm);
+                                error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                                    error: ToRustAGaugeError::UnreliableRPM(),
+                                    severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
+                                });
                             } else {
                                 if !d.data.is_value_normal() {
                                     defmt::warn!("Received value of dubious validity: {}", rpm);
@@ -172,10 +191,29 @@ async fn main(spawner: embassy_executor::Spawner) {
                                 lcd_sender.send(ToLcdEvents::NewData(d)).await;
                             } else {
                                 defmt::error!("Insane data point: {}, skipping", d);
+                                match d.data{
+                                    Datum::RPM(_) => {
+                                        error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                                            error: ToRustAGaugeError::UnreliableRPM(),
+                                            severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
+                                        });
+                                    }
+                                    Datum::VBat(_) => {
+                                        error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                                            error: ToRustAGaugeError::UnreliableVBAT(),
+                                            severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
+                                        });
+                                    }
+                                    Datum::CoolantTempC(_) => {
+                                        error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                                            error: ToRustAGaugeError::UnreliableCoolant(),
+                                            severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
+                                        });
+                                    }// below lies the staircase to hell. 
+                                    // Despite the massive harpy sized nest, 
+                                    // I think the code is fairly readable and not worth reformatting.
+                                }
                             }
-                            // below lies the staircase to hell. 
-                            // Despite the massive harpy sized nest, 
-                            // I think the code is fairly readable and not worth reformatting.
                         }
                     }
                 }

@@ -1,6 +1,5 @@
 use core::cmp::Ordering;
 use circular_buffer::CircularBuffer;
-use embassy_rp::interrupt::InterruptExt;
 use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 
 
