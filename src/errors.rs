@@ -1,6 +1,10 @@
 use core::fmt::{Debug, Formatter};
 use thiserror_no_std::Error;
 
+
+// TODO: WTF is this file. Valve pls fix
+/// macro would be nice here, but rust macro language is on the same spiritual level as [DreamBerd](https://github.com/TodePond/DreamBerd)
+
 #[derive(Error, Debug, defmt::Format, PartialEq)]
 pub enum ToRustAGaugeError {
     #[error("Nondescript error")]
@@ -24,6 +28,12 @@ pub enum ToRustAGaugeError {
     UartVoltageParseError(),
     #[error("Error communicating with LCD")]
     MipiDsiError(),
+    #[error("RPM data does NOT pass the vibe check")]
+    UnreliableRPM(),
+    #[error("VBAT data does NOT pass the vibe check")]
+    UnreliableVBAT(),
+    #[error("Coolant data does NOT pass the vibe check")]
+    UnreliableCoolant(),
     
 }
 
@@ -37,7 +47,9 @@ const UART_INCORRECT_LENGTH_ERROR_STR: &'static str = "UART resp. \nincluded   \
 const UART_PID_MISMATCH_ERROR_STR: &'static str =     "UART resp. \nincluded   \nwrong PID  \n           ";
 const UART_VOLTAGE_PARSE_ERROR_STR: &'static str =    "UART soft- \nware failed\nto parse   \nvoltage!   ";
 const MIPI_DSI_ERROR_STR: &'static str =              "LCD Error! \nSPI commun-\nication    \nfailure!   ";
-// const UART_VOLTAGE_PARSE_ERROR_STR: &'static str =    "UART soft- \nware failed\nto parse   \nvoltage!   ";
+const UNRELIABLE_RPM: &'static str =                  "Unreliable \nRPM data!  \nCaution!   \n           ";
+const UNRELIABLE_VBAT: &'static str =                 "Unreliable \nVBAT data! \nCaution!   \n           ";
+const UNRELIABLE_COOLANT: &'static str =              "Unreliable \nTemp data! \nCaution!   \n           ";
 
 
 
@@ -55,6 +67,9 @@ impl ToRustAGaugeError{
             ToRustAGaugeError::UartPidMismatchError() => { UART_PID_MISMATCH_ERROR_STR }
             ToRustAGaugeError::UartVoltageParseError() => { UART_VOLTAGE_PARSE_ERROR_STR }
             ToRustAGaugeError::MipiDsiError() => { MIPI_DSI_ERROR_STR }
+            ToRustAGaugeError::UnreliableRPM() => { UNRELIABLE_RPM }
+            ToRustAGaugeError::UnreliableVBAT() => { UNRELIABLE_VBAT }
+            ToRustAGaugeError::UnreliableCoolant() => { UNRELIABLE_COOLANT }
         }
     }
 }

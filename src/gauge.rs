@@ -1,9 +1,18 @@
-use embassy_rp::pio::{Instance, Pio};
+use embassy_futures::join::join;
+use embassy_rp::peripherals::PIO0;
+use embassy_rp::pio::Pio;
 use smart_leds::RGB8;
-use crate::{GaugePins, Irqs, ToMainEvents, GAUGE_EVENT_CHANNEL, INCOMING_EVENT_CHANNEL};
+use crate::{GaugePins, Irqs, ToGaugeEvents, ToLcdEvents, ToMainEvents, GAUGE_EVENT_CHANNEL, INCOMING_EVENT_CHANNEL};
+use crate::data_point::{DataPoint, Datum};
 use crate::pio_stepper::PioStepper;
 use crate::ws2812::Ws2812;
 const STEPPER_SM: usize = 0;
+const NUM_LEDS: usize = 24;
+const NUM_LABEL_LEDS: usize = 5;
+const LED_ZERO_OFFSET: usize = 12;
+
+const WHITE: RGB8 = RGB8 { r: 255, g: 255, b: 255 };
+const BLACK: RGB8 = RGB8 { r: 0, g: 0, b: 0 };
 #[embassy_executor::task]
 pub async fn gauge_task(r: GaugePins) {
     let receiver = GAUGE_EVENT_CHANNEL.receiver();
@@ -13,8 +22,8 @@ pub async fn gauge_task(r: GaugePins) {
 
     // This is the number of leds in the string. Helpfully, the sparkfun thing plus and adafruit
     // feather boards for the 2040 both have one built in.
-    const NUM_LEDS: usize = 24;
-    let mut data: [RGB8; NUM_LEDS];
+
+    let mut neo_p_data: [RGB8; NUM_LEDS] = [BLACK; NUM_LEDS];
 
     // Common neopixel pins:
     // Thing plus: 8
@@ -26,7 +35,7 @@ pub async fn gauge_task(r: GaugePins) {
     } = Pio::new(r.stepper_pio, Irqs);
     
 
-    let mut stepper = PioStepper::new(
+    let mut pio_stepper = PioStepper::new(
         &mut common,
         sm0,
         irq0,
@@ -35,19 +44,40 @@ pub async fn gauge_task(r: GaugePins) {
         r.stepper_b1_pin,
         r.stepper_b2_pin
     );
-    stepper.set_frequency(120);
+    pio_stepper.set_frequency(120);
+
+    let mut stepper: PositionalStepper<'static, PIO0> = PositionalStepper{
+        current_position: None,
+        pio_stepper,
+    };
+    stepper.calibrate().await;
     
     sender.send(ToMainEvents::GaugeInitComplete).await;
-    let green = RGB8::new(0, 255, 0);
-    let red = RGB8::new(255, 0, 0);
+
+    let mut is_backlight_on = false;
     
     loop {
-        data = [green; 24];
-        ws2812.write(&data).await;
-        stepper.step2(100).await;
-        data = [red; 24];
-        ws2812.write(&data).await;
-        stepper.step2(-100).await;
+        match receiver.receive().await {
+            ToGaugeEvents::NewData(data) => {
+                match data.data {
+                    Datum::RPM(rpm) => {
+                        if !data.data.is_value_sane_check(){
+                            defmt::error!("Gauge received insane RPM value: {}, ignoring", rpm);
+                        } else {
+                            if !data.data.is_value_normal(){
+                                defmt::warn!("Gauge received value of dubious validity: {}", rpm);
+                            }
+                            do_backlight(&mut neo_p_data, rpm, is_backlight_on);
+                            join(ws2812.write(&neo_p_data), stepper.set_position_from_val(rpm)).await;
+                        }
+                    }
+                    _ => {defmt::error!("Gauge received data point containing data that isn't RPM. Ignoring")}
+                }
+            }
+            ToGaugeEvents::IsBackLightOn(new_bl_state) => {
+                is_backlight_on = new_bl_state;
+            }
+        }
     }
 }
 
@@ -74,7 +104,7 @@ pub struct PositionalStepper<'a, T: embassy_rp::pio::Instance>{
 
 impl<'a, T: embassy_rp::pio::Instance> PositionalStepper<'a, T> {
     pub async fn calibrate(&mut self){
-        self.pio_stepper.step2(-1000).await;
+        self.pio_stepper.step2(-800).await;
         self.current_position = Some(0);
     }
     
@@ -82,7 +112,37 @@ impl<'a, T: embassy_rp::pio::Instance> PositionalStepper<'a, T> {
     pub async fn set_position(&mut self, target_position: u32){
         let delta: i32 = target_position as i32 - self.current_position
                 .expect("tried to set stepper pos before calibration") as i32;
-        self.pio_stepper.step2(delta).await;
         self.current_position = Some(target_position);
+        self.pio_stepper.step2(delta).await;
+    }
+    
+    /// if this future is dropped, the motor must be recalibrated
+    pub async fn set_position_from_val(&mut self, value: f64){
+        let scaled_value = (540.0 * value / 9000.0).clamp(0.0, 540.0) as u32;
+        self.set_position(scaled_value).await;
+    }
+}
+
+fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: bool){
+    let normalized_val: usize = (19.0 * value / 9000.0).clamp(0.0, 19.0) as usize;
+    let dim_factor: f32 = if is_backlight_on {1.0} else {0.5};
+    
+    for i in 0..NUM_LEDS {
+        let offset_index = (i + LED_ZERO_OFFSET) % NUM_LEDS;
+        if offset_index <= normalized_val {
+            neo_p_data[offset_index] = dim_color_by_factor(wheel(((i*12)%256) as u8), dim_factor);
+        } else if offset_index > NUM_LEDS-NUM_LABEL_LEDS {
+            neo_p_data[offset_index] = dim_color_by_factor(WHITE, dim_factor);
+        } else {
+            neo_p_data[offset_index] = BLACK;
+        }
+    }
+}
+
+fn dim_color_by_factor(color: RGB8, factor: f32) -> RGB8 {
+    RGB8{
+        r: (color.r as f32 * factor).clamp(0.0, 255.0) as u8,
+        g: (color.g as f32 * factor).clamp(0.0, 255.0) as u8,
+        b: (color.b as f32 * factor).clamp(0.0, 255.0) as u8,
     }
 }

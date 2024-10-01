@@ -47,7 +47,7 @@ pub enum ToLcdEvents {
     IsBackLightOn(bool),
 }
 
-pub static GAUGE_EVENT_CHANNEL: Channel<CriticalSectionRawMutex, ToLcdEvents, 10> = Channel::new();
+pub static GAUGE_EVENT_CHANNEL: Channel<CriticalSectionRawMutex, ToGaugeEvents, 10> = Channel::new();
 pub enum ToGaugeEvents {
     NewData(data_point::DataPoint),
     IsBackLightOn(bool),
@@ -113,7 +113,7 @@ async fn main(spawner: Spawner) {
     let lcd_sender = LCD_EVENT_CHANNEL.sender();
     let gauge_sender = GAUGE_EVENT_CHANNEL.sender();
     
-    let mut is_gauge_init: bool = true; // until gauge is implemented
+    let mut is_gauge_init: bool = false;
     let mut is_lcd_init: bool = false;
     let mut is_elm_init: bool = false;
     
@@ -123,6 +123,7 @@ async fn main(spawner: Spawner) {
             ToMainEvents::GaugeInitComplete => {
                 info!("Gauge initialized");
                 is_gauge_init = true;
+                gauge_sender.send(ToGaugeEvents::IsBackLightOn(is_backlight_on)).await;
             }
             ToMainEvents::GaugeError(e) => {
                 warn!("Gauge error: {:?}", e);
@@ -146,7 +147,9 @@ async fn main(spawner: Spawner) {
                 info!("Elm data point: {:?}", d);
                 match d.data{
                     Datum::RPM(_) => {
-                        
+                        if is_gauge_init{
+                            gauge_sender.send(ToGaugeEvents::NewData(d)).await;
+                        }
                     }
                     _ => {
                         if is_lcd_init{
