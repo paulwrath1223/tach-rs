@@ -275,7 +275,14 @@ async fn get_pid<'a>(pid: elm_commands::PidCommand,
     uart_write_read(uart, &pid.ascii_command, rx_buffer).await?;
     rx_buffer.parse_bytes(intermediate_buffer);
     byte_buffer.populate_from_hex_digit_buffer(intermediate_buffer)?;
-    pid.extract_val_from_parsed_resp(byte_buffer.get_slice())
+    let result = pid.extract_val_from_parsed_resp(byte_buffer.get_slice());
+    match result{
+        Ok(v) => Ok(v),
+        Err(er) => {
+            defmt::error!("Failed to get PID: {:?}, result was {:?}", &er, byte_buffer.get_slice());
+            Err(er)
+        }
+    }
 }
 
 
