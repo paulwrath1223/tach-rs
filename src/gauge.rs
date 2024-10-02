@@ -99,6 +99,7 @@ pub struct PositionalStepper<'a, T: embassy_rp::pio::Instance>{
     pio_stepper: PioStepper<'a, T, { STEPPER_SM }>,
 }
 
+//TODO: put the positional stuff in the stepper class
 impl<'a, T: embassy_rp::pio::Instance> PositionalStepper<'a, T> {
     pub async fn calibrate(&mut self){
         self.pio_stepper.step_double(-700).await;
