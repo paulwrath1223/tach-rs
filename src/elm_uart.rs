@@ -3,7 +3,7 @@ use embassy_rp::peripherals::UART0;
 use embassy_rp::uart;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Sender;
-use embassy_time::{Duration, WithTimeout};
+use embassy_time::{Duration, Ticker, WithTimeout};
 use embedded_hal_async::delay::DelayNs;
 use crate::{elm_commands, ElmUart, ToMainEvents, Irqs, INCOMING_EVENT_CHANNEL, data_point};
 use crate::byte_parsing::{parse_voltage, CharByte, FullyAssembledByte, HexDigit, SizedUartBuffer};
@@ -101,8 +101,11 @@ pub async fn elm_uart_task(r: ElmUart){
     sender.send(ToMainEvents::ElmInitComplete).await;
 
     let mut loop_counter: u8 = 0;
+    
+    let mut ticker = Ticker::every(Duration::from_millis(100));
 
     loop {
+        ticker.next().await;
         match result_unpacker(
             get_pid(
                 elm_commands::ENGINE_RPM_PID,
@@ -128,6 +131,7 @@ pub async fn elm_uart_task(r: ElmUart){
         }
 
         if loop_counter & 0x0F == 0{
+            ticker.next().await;
             match result_unpacker(
                 get_pid(
                     elm_commands::ENGINE_COOLANT_TEMP_PID,
@@ -152,6 +156,7 @@ pub async fn elm_uart_task(r: ElmUart){
                 None => {}
             }
         } else if loop_counter & 0x0F == 0x08 {
+            ticker.next().await;
             match result_unpacker(
                 get_voltage(
                     &mut uart,
@@ -174,7 +179,6 @@ pub async fn elm_uart_task(r: ElmUart){
             }
         }
         loop_counter = loop_counter.overflowing_add(1).0;
-        embassy_time::Delay.delay_ms(100).await;
         
     }
 }

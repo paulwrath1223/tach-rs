@@ -65,8 +65,8 @@ assign_resources! { // I hate this macro shit
         dma0: DMA_CH0,
         dma1: DMA_CH1,
     },
-    backlight_adc: BacklightAdc{
-        adc_pin: PIN_14,
+    backlight_sensor: BacklightSensor{
+        bl_pin: PIN_14,
     },
     gauge: GaugePins{
         stepper_a1_pin: PIN_4,
@@ -109,6 +109,8 @@ async fn main(spawner: embassy_executor::Spawner) {
     let mut is_backlight_on = true;
     
     let receiver = INCOMING_EVENT_CHANNEL.receiver();
+    
+    let dig_in = embassy_rp::gpio::Input::new(r.backlight_sensor.bl_pin, embassy_rp::gpio::Pull::None);
 
     spawner.spawn(gauge_task(r.gauge)).expect("failed to spawn elm uart task");
     spawner.spawn(elm_uart_task(r.elm_uart)).expect("failed to spawn elm uart task");
@@ -131,6 +133,8 @@ async fn main(spawner: embassy_executor::Spawner) {
             last_error_check = embassy_time::Instant::now();
             error_fifo.clear_inactive();
             lcd_sender.send(ToLcdEvents::Error(error_fifo.get_most_relevant_error())).await;
+            
+            is_backlight_on = dig_in.is_low();
         }
 
         match event{

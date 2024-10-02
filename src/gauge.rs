@@ -48,7 +48,7 @@ pub async fn gauge_task(r: GaugePins) {
         r.stepper_b1_pin,
         r.stepper_b2_pin
     );
-    pio_stepper.set_frequency(200);
+    pio_stepper.set_frequency(128);
     
 
     let mut stepper: PositionalStepper<'static, PIO0> = PositionalStepper{
@@ -67,7 +67,8 @@ pub async fn gauge_task(r: GaugePins) {
                 match data.data {
                     Datum::RPM(rpm) => {
                         do_backlight(&mut neo_p_data, rpm, is_backlight_on);
-                        join(ws2812.write(&neo_p_data), stepper.set_position_from_val(rpm)).await;
+                        ws2812.write(&neo_p_data).await;
+                        stepper.set_position_from_val(rpm).await;
                     }
                     _ => {defmt::error!("Gauge received data point containing data that isn't RPM. Ignoring")}
                 }
