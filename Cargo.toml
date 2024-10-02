@@ -61,6 +61,7 @@ fixed = "1.28.0"
 smart-leds = "0.4.0"
 fixed-macro = "1.2.0"
 circular-buffer = { version = "0.1.9", default-features = false }
+arrayvec = { version = "0.7.6", default-features = false }
 
 
 

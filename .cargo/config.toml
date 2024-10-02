@@ -7,7 +7,7 @@ target = "thumbv6m-none-eabi"
 
 
 [env]
-DEFMT_LOG = "info"
+DEFMT_LOG = "debug"
 
 #[rust-analyzer]
 #rust-analyzer.cargo.target = "thumbv6m-none-eabi"

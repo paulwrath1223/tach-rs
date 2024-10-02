@@ -1,6 +1,8 @@
 use core::cmp::Ordering;
 use circular_buffer::CircularBuffer;
-use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
+use arrayvec::ArrayVec;
+use defmt::Format;
+use crate::errors::{ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 
 
 // This file handles determining which error to render on the display.
@@ -9,6 +11,9 @@ use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeEr
 const ERROR_LIFETIME_SECONDS: u64 = 20; // how many seconds to keep error on the display.
 // (this excludes complete failures, which stay forever)
 
+const ERROR_BUF_LEN: usize = 16;
+
+#[derive(Debug, Format)]
 pub struct ErrorWithLifetime{
     error_with_severity: ToRustAGaugeErrorWithSeverity,
     time_received: embassy_time::Instant,
@@ -54,42 +59,50 @@ impl ErrorWithLifetime{
         if self.error_with_severity.severity == ToRustAGaugeErrorSeverity::CompleteFailure {
             return true;
         }
-        embassy_time::Instant::now() - self.time_received > embassy_time::Duration::from_secs(ERROR_LIFETIME_SECONDS)
+        embassy_time::Instant::now().duration_since(self.time_received) < embassy_time::Duration::from_secs(ERROR_LIFETIME_SECONDS)
     }
 }
 
-pub struct ErrorFifo(CircularBuffer<10, ErrorWithLifetime>);
+#[derive(Debug)]
+pub struct ErrorFifo(
+    ArrayVec<ErrorWithLifetime, ERROR_BUF_LEN>
+);
 
 impl ErrorFifo{
     pub fn new()->Self{
-        ErrorFifo(CircularBuffer::<10, ErrorWithLifetime>::new())
+        Self(ArrayVec::new())
     }
 
     pub fn clear_inactive(&mut self){
-        for index in 0..self.0.len(){
-            if !self.0[index].is_active(){
-                self.0.remove(index);
-            }
-        }
+        self.0.retain(|x| x.is_active());
     }
     
     pub fn get_most_relevant_error(&self) -> Option<ToRustAGaugeErrorWithSeverity>{
         let mut most_relevant_error: Option<&ErrorWithLifetime> = None;
-        self.0.iter().for_each(|error|{
+        for error in self.0.iter() {
             most_relevant_error = match most_relevant_error{
                 None => { Some(error) },
                 Some(old_relevant) => {
                     Some(core::cmp::max(error, old_relevant))
                 }
             }
-        });
-        most_relevant_error.map(|err|{
+        };
+        let output = most_relevant_error.map(|err|{
             err.error_with_severity.clone()
-        })
+        });
+        output
     }
     
-    pub fn add_and_update(&mut self, error: ToRustAGaugeErrorWithSeverity){
-        self.clear_inactive();
-        self.0.push_back(ErrorWithLifetime::new(error));
+    pub fn add(&mut self, new_error: ToRustAGaugeErrorWithSeverity){
+        let mut exists_already: bool = false;
+        self.0.iter_mut().for_each(|error|{
+            if error.error_with_severity == new_error {
+                error.time_received = embassy_time::Instant::now();
+                exists_already = true;
+            }
+        });
+        if !exists_already {
+            self.0.push(ErrorWithLifetime::new(new_error));
+        }
     }
 }

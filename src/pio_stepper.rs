@@ -92,6 +92,14 @@ impl<'d, T: Instance, const SM: usize> PioStepper<'d, T, SM> {
         }
     }
 
+    pub async fn step_double(&mut self, steps: i32) {
+        if steps > 0 {
+            self.run(steps, 0b1010_0110_0101_1001_1010_0110_0101_1001).await
+        } else {
+            self.run(-steps, 0b1001_0101_0110_1010_1001_0101_0110_1010).await
+        }
+    }
+
     async fn run(&mut self, steps: i32, pattern: u32) {
         self.sm.tx().wait_push(steps as u32).await; // send 'steps to take' to pio
         self.sm.tx().wait_push(pattern).await; // send the pattern to pio

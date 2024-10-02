@@ -11,7 +11,7 @@ use crate::ws2812::Ws2812;
 const STEPPER_SM: usize = 0;
 const NUM_LEDS: usize = 24;
 const NUM_LABEL_LEDS: usize = 5;
-const LED_ZERO_OFFSET: usize = 12;
+const LED_ZERO_OFFSET: usize = 9;
 
 const WHITE: RGB8 = RGB8 { r: 255, g: 255, b: 255 };
 const BLACK: RGB8 = RGB8 { r: 0, g: 0, b: 0 };
@@ -48,7 +48,8 @@ pub async fn gauge_task(r: GaugePins) {
         r.stepper_b1_pin,
         r.stepper_b2_pin
     );
-    pio_stepper.set_frequency(120);
+    pio_stepper.set_frequency(200);
+    
 
     let mut stepper: PositionalStepper<'static, PIO0> = PositionalStepper{
         current_position: None,
@@ -101,7 +102,8 @@ pub struct PositionalStepper<'a, T: embassy_rp::pio::Instance>{
 
 impl<'a, T: embassy_rp::pio::Instance> PositionalStepper<'a, T> {
     pub async fn calibrate(&mut self){
-        self.pio_stepper.step2(-800).await;
+        self.pio_stepper.step_double(-700).await;
+        self.pio_stepper.step_double(5).await;
         self.current_position = Some(0);
     }
     
@@ -110,7 +112,7 @@ impl<'a, T: embassy_rp::pio::Instance> PositionalStepper<'a, T> {
         let delta: i32 = target_position as i32 - self.current_position
                 .expect("tried to set stepper pos before calibration") as i32;
         self.current_position = Some(target_position);
-        self.pio_stepper.step2(delta).await;
+        self.pio_stepper.step_double(delta).await;
     }
     
     /// if this future is dropped, the motor must be recalibrated
@@ -133,11 +135,11 @@ fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: 
     for i in 0..NUM_LEDS {
         let offset_index = (i + LED_ZERO_OFFSET) % NUM_LEDS;
         if offset_index <= normalized_val {
-            neo_p_data[offset_index] = dim_color_by_factor(wheel(((i*12)%256) as u8), dim_factor);
-        } else if offset_index > NUM_LEDS-NUM_LABEL_LEDS {
-            neo_p_data[offset_index] = dim_color_by_factor(WHITE, dim_factor);
+            neo_p_data[i] = dim_color_by_factor(wheel(((i*12)%256) as u8), dim_factor);
+        } else if offset_index >= NUM_LEDS-NUM_LABEL_LEDS {
+            neo_p_data[i] = dim_color_by_factor(WHITE, dim_factor);
         } else {
-            neo_p_data[offset_index] = BLACK;
+            neo_p_data[i] = BLACK;
         }
     }
 }

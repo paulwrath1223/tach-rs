@@ -49,17 +49,17 @@ pub async fn elm_uart_task(r: ElmUart){
     // defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_ECHO, elm_commands::DISABLE_ECHO.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::DISABLE_ECHO.as_bytes(), &mut raw_rx_buf
-    ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
+    ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::ENABLE_HEADERS, elm_commands::ENABLE_HEADERS.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::ENABLE_HEADERS.as_bytes(), &mut raw_rx_buf
-    ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
+    ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::SET_PROTOCOL_5, elm_commands::SET_PROTOCOL_5.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::SET_PROTOCOL_5.as_bytes(), &mut raw_rx_buf
-    ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
+    ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
     // defmt::info!("sending {:?} ({:?})", elm_commands::SET_TIMEOUT_64, elm_commands::SET_TIMEOUT_64.as_bytes());
     result_unpacker(uart_write_read(
@@ -84,7 +84,7 @@ pub async fn elm_uart_task(r: ElmUart){
     // defmt::info!("sending {:?} ({:?})", elm_commands::SET_CUSTOM_HEADERS, elm_commands::SET_CUSTOM_HEADERS.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::SET_CUSTOM_HEADERS.as_bytes(), &mut raw_rx_buf
-    ).await, sender, ToRustAGaugeErrorSeverity::CompleteFailure).await;
+    ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
     result_unpacker(
         get_pid(
@@ -95,7 +95,7 @@ pub async fn elm_uart_task(r: ElmUart){
             &mut byte_rx_buf
         ).await, 
         sender, 
-        ToRustAGaugeErrorSeverity::CompleteFailure
+        ToRustAGaugeErrorSeverity::MaybeRecoverable
     ).await;
 
     sender.send(ToMainEvents::ElmInitComplete).await;
@@ -255,10 +255,10 @@ async fn uart_write_read<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
 ) -> Result<(), ToRustAGaugeError>{
     uart.blocking_write(message)?;
     uart.blocking_flush()?;
-    defmt::info!("`uart_write_read` wrote and flushed: {:?}", message);
+    // defmt::info!("`uart_write_read` wrote and flushed: {:?}", message);
     embassy_time::block_for(Duration::from_millis(20));
     uart_read_until_char(uart, DELIMITER_U8, rx_buffer).await?;
-    defmt::info!("`uart_write_read` read: {:?}", rx_buffer);
+    // defmt::info!("`uart_write_read` read: {:?}", rx_buffer);
     Ok(())
 }
 

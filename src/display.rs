@@ -150,7 +150,7 @@ pub async fn display_task(r: DisplayPins) {
 
     rust_logo.draw(&mut display).expect("failed to draw rust_logo");
     coolant_temp_icon.draw(&mut display).expect("failed to draw coolant_temp_icon");
-    warning_icon.draw(&mut display).expect("failed to draw warning_icon");
+    // warning_icon.draw(&mut display).expect("failed to draw warning_icon");
     light_icon.draw(&mut display).expect("failed to draw light_icon");
     good_vbat_icon.draw(&mut display).expect("failed to draw good_vbat_icon");
     

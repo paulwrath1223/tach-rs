@@ -106,7 +106,7 @@ async fn main(spawner: embassy_executor::Spawner) {
     let r = split_resources!(p);
 
     
-    let mut is_backlight_on = false;
+    let mut is_backlight_on = true;
     
     let receiver = INCOMING_EVENT_CHANNEL.receiver();
 
@@ -116,23 +116,23 @@ async fn main(spawner: embassy_executor::Spawner) {
     
     let lcd_sender = LCD_EVENT_CHANNEL.sender();
     let gauge_sender = GAUGE_EVENT_CHANNEL.sender();
-    
+
     let mut error_fifo = ErrorFifo::new();
     
     let mut is_gauge_init: bool = false;
     let mut is_lcd_init: bool = false;
-    
+
     let mut last_error_check: embassy_time::Instant = embassy_time::Instant::now();
     
     loop {
         let event = receiver.receive().await;
-        
+
         if last_error_check.elapsed() > ERROR_CHECKING_INTERVAL {
             last_error_check = embassy_time::Instant::now();
             error_fifo.clear_inactive();
             lcd_sender.send(ToLcdEvents::Error(error_fifo.get_most_relevant_error())).await;
         }
-        
+
         match event{
             ToMainEvents::GaugeInitComplete => {
                 info!("Gauge initialized");
@@ -141,23 +141,24 @@ async fn main(spawner: embassy_executor::Spawner) {
             }
             ToMainEvents::GaugeError(e) => {
                 warn!("Gauge error: {:?}", e);
-                error_fifo.add_and_update(e);
+                error_fifo.add(e);
             }
             ToMainEvents::LcdInitComplete => {
                 info!("LCD initialized");
                 is_lcd_init = true;
                 lcd_sender.send(ToLcdEvents::IsBackLightOn(is_backlight_on)).await;
+                lcd_sender.send(ToLcdEvents::Error(None)).await;
             }
             ToMainEvents::LcdError(e) => {
                 warn!("LCD error: {:?}", e);
-                error_fifo.add_and_update(e);
+                error_fifo.add(e);
             }
             ToMainEvents::ElmInitComplete => {
                 info!("Elm initialized");
             }
             ToMainEvents::ElmError(e) => {
                 warn!("Elm error: {:?}", e);
-                error_fifo.add_and_update(e);
+                error_fifo.add(e);
             }
             ToMainEvents::ElmDataPoint(d) => {
                 info!("Elm data point: {:?}", d);
@@ -169,14 +170,14 @@ async fn main(spawner: embassy_executor::Spawner) {
                     Datum::RPM(rpm) => {
                         if !d.data.is_value_sane_check(){
                             defmt::error!("Insane RPM value: {}, ignoring", rpm);
-                            error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                            error_fifo.add(ToRustAGaugeErrorWithSeverity{
                                 error: ToRustAGaugeError::UnreliableRPM(),
                                 severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
                             });
                         } else {
                             if !d.data.is_value_normal() {
                                 defmt::warn!("Received value of dubious validity: {}", d.data);
-                                error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                                error_fifo.add(ToRustAGaugeErrorWithSeverity{
                                     error: ToRustAGaugeError::StrangeRPM(),
                                     severity: ToRustAGaugeErrorSeverity::MaybeRecoverable,
                                 });
@@ -189,14 +190,14 @@ async fn main(spawner: embassy_executor::Spawner) {
                     Datum::VBat(vbat) => {
                         if !d.data.is_value_sane_check(){
                             defmt::error!("Insane VBAT value: {}, ignoring", vbat);
-                            error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                            error_fifo.add(ToRustAGaugeErrorWithSeverity{
                                 error: ToRustAGaugeError::UnreliableVBAT(),
                                 severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
                             });
                         } else {
                             if !d.data.is_value_normal() {
                                 defmt::warn!("Received value of dubious validity: {}", d.data);
-                                error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                                error_fifo.add(ToRustAGaugeErrorWithSeverity{
                                     error: ToRustAGaugeError::StrangeVBAT(),
                                     severity: ToRustAGaugeErrorSeverity::MaybeRecoverable,
                                 });
@@ -209,14 +210,14 @@ async fn main(spawner: embassy_executor::Spawner) {
                     Datum::CoolantTempC(temperature) => {
                         if !d.data.is_value_sane_check(){
                             defmt::error!("Insane coolant temperature value: {}, ignoring", temperature);
-                            error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                            error_fifo.add(ToRustAGaugeErrorWithSeverity{
                                 error: ToRustAGaugeError::UnreliableCoolant(),
                                 severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
                             });
                         } else {
                             if !d.data.is_value_normal() {
                                 defmt::warn!("Received value of dubious validity: {}", d.data);
-                                error_fifo.add_and_update(ToRustAGaugeErrorWithSeverity{
+                                error_fifo.add(ToRustAGaugeErrorWithSeverity{
                                     error: ToRustAGaugeError::StrangeCoolant(),
                                     severity: ToRustAGaugeErrorSeverity::MaybeRecoverable,
                                 });
