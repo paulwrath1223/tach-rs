@@ -133,7 +133,7 @@ fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: 
     for i in 0..NUM_LEDS {
         let offset_index = (i + LED_ZERO_OFFSET) % NUM_LEDS;
         if offset_index <= normalized_val {
-            neo_p_data[i] = dim_color_by_factor(wheel(((i*12)%256) as u8), dim_factor);
+            neo_p_data[i] = dim_color_by_factor(wheel(((offset_index*12)%256) as u8), dim_factor);
         } else if offset_index >= NUM_LEDS-NUM_LABEL_LEDS {
             neo_p_data[i] = dim_color_by_factor(WHITE, dim_factor);
         } else {
