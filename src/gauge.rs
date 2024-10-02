@@ -38,7 +38,6 @@ pub async fn gauge_task(r: GaugePins) {
         mut common, irq0, sm0, ..
     } = Pio::new(r.stepper_pio, Irqs);
     
-
     let mut pio_stepper = PioStepper::new(
         &mut common,
         sm0,
@@ -50,7 +49,6 @@ pub async fn gauge_task(r: GaugePins) {
     );
     pio_stepper.set_frequency(128);
     
-
     let mut stepper: PositionalStepper<'static, PIO0> = PositionalStepper{
         current_position: None,
         pio_stepper,
@@ -58,7 +56,7 @@ pub async fn gauge_task(r: GaugePins) {
     stepper.calibrate().await;
     
     sender.send(ToMainEvents::GaugeInitComplete).await;
-
+    
     let mut is_backlight_on = false;
     
     loop {
@@ -124,7 +122,6 @@ impl<'a, T: embassy_rp::pio::Instance> PositionalStepper<'a, T> {
 }
 
 fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: bool){
-    
     let normalized_val: usize = (19.0 * value / 9000.0).clamp(0.0, 19.0) as usize;
     
     let dim_factor: f32 = if is_backlight_on {

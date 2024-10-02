@@ -279,7 +279,7 @@ async fn get_pid<'a>(pid: elm_commands::PidCommand,
     match result{
         Ok(v) => Ok(v),
         Err(er) => {
-            defmt::error!("Failed to get PID: {:?}, result was {:?}", &er, byte_buffer.get_slice());
+            defmt::error!("Failed to get PID: {:?}\nSent: {:?}\nraw result was {:?}", &er, &pid.ascii_command, core::str::from_utf8(&rx_buffer.buffer[0..rx_buffer.end]).unwrap());
             Err(er)
         }
     }
