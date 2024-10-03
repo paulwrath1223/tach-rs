@@ -61,7 +61,7 @@ const UNRELIABLE_COOLANT: &'static str =              "Unreliable \nTemp data! \
 const STRANGE_RPM: &'static str =                     "Weird RPM  \ndata! Maybe\nreal but   \nProblematic";
 const STRANGE_VBAT: &'static str =                    "Weird VBAT \ndata! Maybe\nreal but   \nProblematic";
 const STRANGE_COOLANT: &'static str =                 "Weird Temp \ndata! Maybe\nreal but   \nProblematic";
-const UART_RESPONSE_NO_DATA: &'static str =           "UART NoData\nECU couldnt\nkeep up.Can\nbe ignored.";
+const UART_RESPONSE_NO_DATA: &'static str =           "UART NoData\nECU 2 slow!\nExpected on\nstart up.  ";
 
 
 impl ToRustAGaugeError{
