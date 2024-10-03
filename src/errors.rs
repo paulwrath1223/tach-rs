@@ -41,7 +41,8 @@ pub enum ToRustAGaugeError {
     StrangeVBAT(),
     #[error("Coolant data does NOT pass the vibe check. This data is either bad, or there is a vehicle issue.")]
     StrangeCoolant(),
-    
+    #[error("Response from ELM was 'NO DATA\\r\\r'")]
+    UartResponseNoData(),
 }
 
 const NONDESCRIPT_ERROR_STR: &'static str =           "non-descr- \nipt error! \n   :(      \n   :(      ";
@@ -60,7 +61,7 @@ const UNRELIABLE_COOLANT: &'static str =              "Unreliable \nTemp data! \
 const STRANGE_RPM: &'static str =                     "Weird RPM  \ndata! Maybe\nreal but   \nProblematic";
 const STRANGE_VBAT: &'static str =                    "Weird VBAT \ndata! Maybe\nreal but   \nProblematic";
 const STRANGE_COOLANT: &'static str =                 "Weird Temp \ndata! Maybe\nreal but   \nProblematic";
-    
+const UART_RESPONSE_NO_DATA: &'static str =           "UART NoData\nECU couldnt\nkeep up.Can\nbe ignored.";
 
 
 impl ToRustAGaugeError{
@@ -83,6 +84,7 @@ impl ToRustAGaugeError{
             ToRustAGaugeError::StrangeRPM() => { STRANGE_RPM }
             ToRustAGaugeError::StrangeVBAT() => { STRANGE_VBAT }
             ToRustAGaugeError::StrangeCoolant() => { STRANGE_COOLANT }
+            ToRustAGaugeError::UartResponseNoData() => { UART_RESPONSE_NO_DATA }
         }
     }
 }

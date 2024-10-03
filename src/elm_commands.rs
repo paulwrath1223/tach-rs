@@ -66,11 +66,11 @@ impl PidCommand{
     pub fn extract_val_from_parsed_resp(&self, response: &[u8]) -> Result<f64, ToRustAGaugeError>{
         let resp_len = response.len();
         if resp_len != self.num_bytes_in_response+6{
-            defmt::error!("UartIncorrectLengthError: {:?}", response);
+            defmt::warn!("UartIncorrectLengthError: {:?}", response);
             return Err(ToRustAGaugeError::UartIncorrectLengthError())
         }
         if response[4] != self.pid{
-            defmt::error!("UartPidMismatchError: {:?}", response);
+            defmt::warn!("UartPidMismatchError: {:?}", response);
             return Err(ToRustAGaugeError::UartPidMismatchError())
         }
         let mut actual_sum: u8 = 0;

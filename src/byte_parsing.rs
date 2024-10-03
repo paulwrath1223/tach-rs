@@ -96,10 +96,10 @@ pub fn combine_4bit_pair(input_slice: &[u8]) -> Result<u8, ToRustAGaugeError> {
 impl SizedUartBuffer<CharByte>
 
 {
+    const NO_DATA_MESSAGE: &'static[u8] = &[0x4E, 0x4F, 0x20, 0x44, 0x41, 0x54, 0x41, 0x0D, 0x0D];
     pub fn parse_bytes(&self, parsed_buf: &mut SizedUartBuffer<HexDigit>) {
-        let slice = &self.buffer[0..self.end];
         parsed_buf.end = 0;
-        slice.iter().for_each(|char_byte|{
+        self.get_slice().iter().for_each(|char_byte|{
             match parse_byte(char_byte){
                 Ok(parsed_byte) => {
                     if !parsed_buf.add_element(parsed_byte){
@@ -114,6 +114,11 @@ impl SizedUartBuffer<CharByte>
                 }
             }
         });
+    }
+    
+    pub fn is_no_data(&self) -> bool{
+        let slice = &self.buffer[0..self.end];
+        slice == Self::NO_DATA_MESSAGE
     }
 }
 

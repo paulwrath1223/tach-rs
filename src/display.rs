@@ -145,13 +145,11 @@ pub async fn display_task(r: DisplayPins) {
     let mut counter: u64 = 0;
 
     let mut error_text = Text::new("Hello World\nLine 2??\nLine 3??\nLine 4??", Point::new(206, 103), error_text_style);
-    
-    //TODO: invert light icon
 
     rust_logo.draw(&mut display).expect("failed to draw rust_logo");
     coolant_temp_icon.draw(&mut display).expect("failed to draw coolant_temp_icon");
     // warning_icon.draw(&mut display).expect("failed to draw warning_icon");
-    light_icon.draw(&mut display).expect("failed to draw light_icon");
+    // light_icon.draw(&mut display).expect("failed to draw light_icon");
     good_vbat_icon.draw(&mut display).expect("failed to draw good_vbat_icon");
     
     let mut local_str_buf = [0u8; 12];
@@ -185,12 +183,12 @@ pub async fn display_task(r: DisplayPins) {
                     true => {
                         c.compare_b = BRIGHT_LIGHT_PWM;
                         pwm.set_config(&c);
-                        light_icon.draw(&mut display).expect("failed to draw light icon");
+                        light_icon.clear_bounding_box(&mut display, BG_COLOR).expect("failed to clear light icon");
                     }
                     false => {
                         c.compare_b = DIM_LIGHT_PWM;
                         pwm.set_config(&c);
-                        light_icon.clear_bounding_box(&mut display, BG_COLOR).expect("failed to clear light icon");
+                        light_icon.draw(&mut display).expect("failed to draw light icon");
                     }
                 }
             }

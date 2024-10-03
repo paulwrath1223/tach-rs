@@ -264,7 +264,6 @@ async fn uart_read_until_char<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
     Err(ToRustAGaugeError::UartBufferOverflowError())
 }
 
-//TODO: add explicit check for `NO DATA\r\r` and "BUS\rINIT:\r...OK\r86F0106100083E9001BE\r\r"
 async fn uart_write_read<'a>(uart: &mut uart::Uart<'a, UART0, uart::Async>,
                              message: &[u8], 
                              rx_buffer: &mut SizedUartBuffer<CharByte>
@@ -285,10 +284,12 @@ async fn get_pid<'a>(pid: elm_commands::PidCommand,
                      byte_buffer: &mut SizedUartBuffer<FullyAssembledByte>,
 ) -> Result<f64, ToRustAGaugeError> {
     uart_write_read(uart, &pid.ascii_command, rx_buffer).await?;
+    if rx_buffer.is_no_data(){
+        return Err(ToRustAGaugeError::UartResponseNoData())
+    }
     rx_buffer.parse_bytes(intermediate_buffer);
     let res = byte_buffer.populate_from_hex_digit_buffer(intermediate_buffer);
-    if res.is_err(){
-        let err = res.unwrap_err();
+    if let Err(err) = res{
         defmt::warn!("Failed to get PID: {:?}\nSent: {:?}\nraw result was {:?}", &err, &pid.ascii_command, core::str::from_utf8(&rx_buffer.buffer[0..rx_buffer.end]).unwrap());
         return Err(err)
     }
