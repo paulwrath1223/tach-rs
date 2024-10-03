@@ -17,6 +17,8 @@ const WHITE: RGB8 = RGB8 { r: 255, g: 255, b: 255 };
 const BLACK: RGB8 = RGB8 { r: 0, g: 0, b: 0 };
 const BACKLIGHT_BRIGHT_BRIGHTNESS_MULTIPLIER: f32 = 1.0;
 const BACKLIGHT_DIM_BRIGHTNESS_MULTIPLIER: f32 = 0.5;
+
+const STEPPER_MAX_STEPS: u32 = 135;
 #[embassy_executor::task]
 pub async fn gauge_task(r: GaugePins) {
     let receiver = GAUGE_EVENT_CHANNEL.receiver();
@@ -45,15 +47,13 @@ pub async fn gauge_task(r: GaugePins) {
         r.stepper_a1_pin,
         r.stepper_a2_pin,
         r.stepper_b1_pin,
-        r.stepper_b2_pin
+        r.stepper_b2_pin,
+        STEPPER_MAX_STEPS
     );
     pio_stepper.set_frequency(128);
-    
-    let mut stepper: PositionalStepper<'static, PIO0> = PositionalStepper{
-        current_position: None,
-        pio_stepper,
-    };
-    stepper.calibrate().await;
+
+
+    pio_stepper.calibrate().await;
     
     sender.send(ToMainEvents::GaugeInitComplete).await;
     
@@ -66,7 +66,7 @@ pub async fn gauge_task(r: GaugePins) {
                     Datum::RPM(rpm) => {
                         do_backlight(&mut neo_p_data, rpm, is_backlight_on);
                         ws2812.write(&neo_p_data).await;
-                        stepper.set_position_from_val(rpm).await;
+                        pio_stepper.set_position_from_val(rpm).await;
                     }
                     _ => {defmt::error!("Gauge received data point containing data that isn't RPM. Ignoring")}
                 }
@@ -94,33 +94,6 @@ fn wheel(mut wheel_pos: u8) -> RGB8 {
     (wheel_pos * 3, 255 - wheel_pos * 3, 0).into()
 }
 
-pub struct PositionalStepper<'a, T: embassy_rp::pio::Instance>{
-    current_position: Option<u32>, // none if uncalibrated
-    pio_stepper: PioStepper<'a, T, { STEPPER_SM }>,
-}
-
-//TODO: put the positional stuff in the stepper class
-impl<'a, T: embassy_rp::pio::Instance> PositionalStepper<'a, T> {
-    pub async fn calibrate(&mut self){
-        self.pio_stepper.step_double(-700).await;
-        self.pio_stepper.step_double(5).await;
-        self.current_position = Some(0);
-    }
-    
-    /// ! dropping this future will cause a disconnect between the actual and internal position of the stepper 
-    pub async fn set_position(&mut self, target_position: u32){
-        let delta: i32 = target_position as i32 - self.current_position
-                .expect("tried to set stepper pos before calibration") as i32;
-        self.current_position = Some(target_position);
-        self.pio_stepper.step_double(delta).await;
-    }
-    
-    /// if this future is dropped, the motor must be recalibrated
-    pub async fn set_position_from_val(&mut self, value: f64){
-        let scaled_value = (540.0 * value / 9000.0).clamp(0.0, 540.0) as u32;
-        self.set_position(scaled_value).await;
-    }
-}
 
 fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: bool){
     let normalized_val: usize = (19.0 * value / 9000.0).clamp(0.0, 19.0) as usize;
