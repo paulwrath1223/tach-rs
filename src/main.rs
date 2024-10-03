@@ -134,12 +134,12 @@ async fn main(spawner: embassy_executor::Spawner) {
             error_fifo.clear_inactive();
             lcd_sender.send(ToLcdEvents::Error(error_fifo.get_most_relevant_error())).await;
 
-            match backlight_input.get_level(){
-                Level::Low => {defmt::info!("backlight level measured Low")}
-                Level::High => {defmt::info!("backlight level measured High")}
-            }
-            
-            is_backlight_on = backlight_input.is_high();
+            is_backlight_on = match backlight_input.get_level(){
+                Level::Low => {true}
+                Level::High => {false}
+            };
+            lcd_sender.send(ToLcdEvents::IsBackLightOn(is_backlight_on)).await;
+            gauge_sender.send(ToGaugeEvents::IsBackLightOn(is_backlight_on)).await;
         }
 
         match event{
