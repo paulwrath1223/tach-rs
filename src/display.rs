@@ -146,7 +146,7 @@ pub async fn display_task(r: DisplayPins) {
 
     let mut error_text = Text::new("Hello World\nLine 2??\nLine 3??\nLine 4??", Point::new(206, 103), error_text_style);
     
-
+    //TODO: invert light icon
 
     rust_logo.draw(&mut display).expect("failed to draw rust_logo");
     coolant_temp_icon.draw(&mut display).expect("failed to draw coolant_temp_icon");

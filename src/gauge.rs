@@ -82,7 +82,7 @@ pub async fn gauge_task(r: GaugePins) {
 /// Input a value 0 to 255 to get a color value
 /// The colours are a transition r - g - b - back to r.
 fn wheel(mut wheel_pos: u8) -> RGB8 {
-    wheel_pos = 255 - wheel_pos;
+    wheel_pos = 128 - wheel_pos;
     if wheel_pos < 85 {
         return (255 - wheel_pos * 3, 0, wheel_pos * 3).into();
     }
