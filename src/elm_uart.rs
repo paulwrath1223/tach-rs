@@ -40,65 +40,65 @@ pub async fn elm_uart_task(r: ElmUart){
         end: 0,
         phantom: PhantomData,
     };
-    let mut ticker_50ms = Ticker::every(Duration::from_millis(180));
-    let mut ticker_300ms = Ticker::every(Duration::from_millis(300));
+    let mut short_ticker = Ticker::every(Duration::from_millis(160));
+    let mut long_ticker = Ticker::every(Duration::from_millis(500));
 
 
-    ticker_300ms.next().await;
+    long_ticker.next().await;
     // defmt::info!("sending {:?} ({:?})", elm_commands::ELM_RESET, elm_commands::ELM_RESET.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::ELM_RESET.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
-    ticker_300ms.next().await;
+    long_ticker.next().await;
     // defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_ECHO, elm_commands::DISABLE_ECHO.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::DISABLE_ECHO.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
-    ticker_300ms.next().await;
+    long_ticker.next().await;
     // defmt::info!("sending {:?} ({:?})", elm_commands::ENABLE_HEADERS, elm_commands::ENABLE_HEADERS.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::ENABLE_HEADERS.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
-    ticker_300ms.next().await;
+    long_ticker.next().await;
     // defmt::info!("sending {:?} ({:?})", elm_commands::SET_PROTOCOL_5, elm_commands::SET_PROTOCOL_5.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::SET_PROTOCOL_5.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
-    ticker_300ms.next().await;
+    long_ticker.next().await;
     // defmt::info!("sending {:?} ({:?})", elm_commands::SET_TIMEOUT_64, elm_commands::SET_TIMEOUT_64.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::SET_TIMEOUT_64.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::EntirelyRecoverable).await;
 
-    ticker_300ms.next().await;
+    long_ticker.next().await;
     // defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_SPACES, elm_commands::DISABLE_SPACES.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::DISABLE_SPACES.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
-    ticker_300ms.next().await;
+    long_ticker.next().await;
     // defmt::info!("sending {:?} ({:?})", elm_commands::DISABLE_MEMORY, elm_commands::DISABLE_MEMORY.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::DISABLE_MEMORY.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
-    ticker_300ms.next().await;
+    long_ticker.next().await;
     // defmt::info!("sending {:?} ({:?})", elm_commands::ENABLE_AUTO_TIMINGS_1, elm_commands::ENABLE_AUTO_TIMINGS_1.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::ENABLE_AUTO_TIMINGS_1.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::EntirelyRecoverable).await;
 
-    ticker_300ms.next().await;
+    long_ticker.next().await;
     // defmt::info!("sending {:?} ({:?})", elm_commands::SET_CUSTOM_HEADERS, elm_commands::SET_CUSTOM_HEADERS.as_bytes());
     result_unpacker(uart_write_read(
         &mut uart, elm_commands::SET_CUSTOM_HEADERS.as_bytes(), &mut raw_rx_buf
     ).await, sender, ToRustAGaugeErrorSeverity::MaybeRecoverable).await;
 
-    ticker_300ms.next().await;
+    long_ticker.next().await;
     result_unpacker(
         get_pid(
             elm_commands::HEARTBEAT_PID, 
@@ -117,7 +117,7 @@ pub async fn elm_uart_task(r: ElmUart){
     
 
     loop {
-        ticker_50ms.next().await;
+        short_ticker.next().await;
         match result_unpacker(
             get_pid(
                 elm_commands::ENGINE_RPM_PID,
@@ -143,7 +143,7 @@ pub async fn elm_uart_task(r: ElmUart){
         }
 
         if loop_counter & 0x0F == 0{
-            ticker_50ms.next().await;
+            short_ticker.next().await;
             match result_unpacker(
                 get_pid(
                     elm_commands::ENGINE_COOLANT_TEMP_PID,
@@ -168,7 +168,7 @@ pub async fn elm_uart_task(r: ElmUart){
                 None => {}
             }
         } else if loop_counter & 0x0F == 0x08 {
-            ticker_50ms.next().await;
+            short_ticker.next().await;
             match result_unpacker(
                 get_voltage(
                     &mut uart,
