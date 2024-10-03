@@ -53,7 +53,8 @@ impl ErrorWithLifetime{
             time_received: embassy_time::Instant::now(),
         }
     }
-
+    //TODO: make no data less severe and adjust active time for different severities
+    
     /// Please drop when not active
     pub fn is_active(&self) -> bool{
         if self.error_with_severity.severity == ToRustAGaugeErrorSeverity::CompleteFailure {
