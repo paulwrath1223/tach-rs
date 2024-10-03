@@ -89,14 +89,15 @@ impl ToRustAGaugeError{
     }
 }
 
+/// u8 repr doubles as the number of seconds it should stay on the screen
 #[repr(u8)]
 #[derive(Debug, defmt::Format, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum ToRustAGaugeErrorSeverity {
-    CompleteFailure = 10,
-    LossOfSomeFunctionality = 9,
-    MaybeRecoverable = 8,
-    BadIfReoccurring = 7,
-    EntirelyRecoverable = 2,
+    CompleteFailure = 30,
+    LossOfSomeFunctionality = 18,
+    MaybeRecoverable = 12,
+    BadIfReoccurring = 10,
+    EntirelyRecoverable = 8,
 }
 
 

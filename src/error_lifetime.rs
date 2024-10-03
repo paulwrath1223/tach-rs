@@ -5,11 +5,6 @@ use defmt::Format;
 use crate::errors::{ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 
 
-// This file handles determining which error to render on the display.
-// (this does not affect debug probe logs)
-
-const ERROR_LIFETIME: embassy_time::Duration = embassy_time::Duration::from_secs(20); // how many seconds to keep error on the display.
-// (this excludes complete failures, which stay forever)
 
 const ERROR_BUF_LEN: usize = 16;
 
@@ -53,14 +48,12 @@ impl ErrorWithLifetime{
             time_received: embassy_time::Instant::now(),
         }
     }
-    //TODO: make no data less severe and adjust active time for different severities
+
     
     /// Please drop when not active
     pub fn is_active(&self) -> bool{
-        if self.error_with_severity.severity == ToRustAGaugeErrorSeverity::CompleteFailure {
-            return true;
-        }
-        embassy_time::Instant::now().duration_since(self.time_received) < ERROR_LIFETIME
+        embassy_time::Instant::now().duration_since(self.time_received) < 
+            embassy_time::Duration::from_secs(self.error_with_severity.severity as u64)
     }
 }
 

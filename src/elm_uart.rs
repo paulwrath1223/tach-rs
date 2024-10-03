@@ -195,15 +195,20 @@ pub async fn elm_uart_task(r: ElmUart){
     }
 }
 
-async fn result_unpacker<'a, T, E>(result: Result<T, E>,
+async fn result_unpacker<'a, T>(result: Result<T, ToRustAGaugeError>,
                          sender: Sender<'a, CriticalSectionRawMutex, ToMainEvents, 10>,
                          error_severity: ToRustAGaugeErrorSeverity
-) -> Option<T> 
-where E: Into<ToRustAGaugeError>
-{
+) -> Option<T> {
     match result{
         Ok(v) => {
             Some(v)
+        }
+        Err(ToRustAGaugeError::UartResponseNoData()) => {
+            sender.send(ToMainEvents::ElmError(ToRustAGaugeErrorWithSeverity{
+                error: ToRustAGaugeError::UartResponseNoData(),
+                severity: ToRustAGaugeErrorSeverity::EntirelyRecoverable,
+            })).await;
+            None
         }
         Err(e) => {
             let error = ToRustAGaugeErrorWithSeverity::from_with_severity(e, error_severity);

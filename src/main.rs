@@ -19,6 +19,7 @@ use assign_resources::assign_resources;
 use embassy_rp::peripherals;
 use {defmt_rtt as _, panic_probe as _};
 use defmt::*;
+use embassy_rp::gpio::Level;
 use embassy_sync::channel::Channel;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use crate::data_point::Datum;
@@ -104,7 +105,6 @@ async fn main(spawner: embassy_executor::Spawner) {
     let p = embassy_rp::init(Default::default());
 
     let r = split_resources!(p);
-
     
     let mut is_backlight_on = true;
     
@@ -133,7 +133,12 @@ async fn main(spawner: embassy_executor::Spawner) {
             last_error_check = embassy_time::Instant::now();
             error_fifo.clear_inactive();
             lcd_sender.send(ToLcdEvents::Error(error_fifo.get_most_relevant_error())).await;
-            //TODO: ADD DEBUG
+
+            match backlight_input.get_level(){
+                Level::Low => {defmt::info!("backlight level measured Low")}
+                Level::High => {defmt::info!("backlight level measured High")}
+            }
+            
             is_backlight_on = backlight_input.is_high();
         }
 
@@ -165,7 +170,7 @@ async fn main(spawner: embassy_executor::Spawner) {
                 error_fifo.add(e);
             }
             ToMainEvents::ElmDataPoint(d) => {
-                info!("Elm data point: {:?}", d);
+                // info!("Elm data point: {:?}", d);
                 let gauge_channel_fifo_length = GAUGE_EVENT_CHANNEL.len();
                 if gauge_channel_fifo_length > 4 {
                     defmt::warn!("Gauge event channel overflow. Length: {}", gauge_channel_fifo_length);
@@ -173,7 +178,7 @@ async fn main(spawner: embassy_executor::Spawner) {
                 match d.data{
                     Datum::RPM(rpm) => {
                         if !d.data.is_value_sane_check(){
-                            defmt::error!("Insane RPM value: {}, ignoring", rpm);
+                            defmt::warn!("Insane RPM value: {}, ignoring", rpm);
                             error_fifo.add(ToRustAGaugeErrorWithSeverity{
                                 error: ToRustAGaugeError::UnreliableRPM(),
                                 severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
@@ -193,7 +198,7 @@ async fn main(spawner: embassy_executor::Spawner) {
                     }
                     Datum::VBat(vbat) => {
                         if !d.data.is_value_sane_check(){
-                            defmt::error!("Insane VBAT value: {}, ignoring", vbat);
+                            defmt::warn!("Insane VBAT value: {}, ignoring", vbat);
                             error_fifo.add(ToRustAGaugeErrorWithSeverity{
                                 error: ToRustAGaugeError::UnreliableVBAT(),
                                 severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
@@ -213,7 +218,7 @@ async fn main(spawner: embassy_executor::Spawner) {
                     }
                     Datum::CoolantTempC(temperature) => {
                         if !d.data.is_value_sane_check(){
-                            defmt::error!("Insane coolant temperature value: {}, ignoring", temperature);
+                            defmt::warn!("Insane coolant temperature value: {}, ignoring", temperature);
                             error_fifo.add(ToRustAGaugeErrorWithSeverity{
                                 error: ToRustAGaugeError::UnreliableCoolant(),
                                 severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
