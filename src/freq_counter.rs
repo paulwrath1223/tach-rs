@@ -2,7 +2,7 @@
 
 use embassy_rp::interrupt::InterruptExt;
 use embassy_time::WithTimeout;
-use crate::FreakyResources;
+use crate::{FreakyResources, RPM_FREQ_CHANNEL};
 
 
 /// the number of pulses that the RPM signal undergoes in a full rotation of the driveshaft
@@ -26,7 +26,8 @@ pub async fn freq_counter_task(r: FreakyResources) {
 
 
 async fn send_rpm(rpm_val: f64){
-    defmt::info!("Sending rpm val: {}", rpm_val); //TODO
+    defmt::info!("Sending rpm val: {}", rpm_val);
+    RPM_FREQ_CHANNEL.send(rpm_val).await;
 }
 
 async fn measure_rpm(rpm_in: &mut embassy_rp::gpio::Input<'static>) -> f64{

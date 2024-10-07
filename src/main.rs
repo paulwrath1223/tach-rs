@@ -19,7 +19,7 @@ use embassy_rp::{bind_interrupts};
 use assign_resources::assign_resources;
 use embassy_rp::peripherals;
 use {defmt_rtt as _, panic_probe as _};
-use defmt::*;
+use defmt;
 use embassy_rp::gpio::Level;
 use embassy_sync::channel::Channel;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -58,6 +58,8 @@ pub enum ToGaugeEvents {
     NewData(data_point::DataPoint),
     IsBackLightOn(bool),
 }
+
+pub static RPM_FREQ_CHANNEL: Channel<CriticalSectionRawMutex, f64, 1> = Channel::new();
 
 assign_resources! { // I hate this macro shit
     elm_uart: ElmUart{
@@ -114,6 +116,8 @@ async fn main(spawner: embassy_executor::Spawner) {
     
     let receiver = INCOMING_EVENT_CHANNEL.receiver();
     
+    let freq_counter_receiver = RPM_FREQ_CHANNEL.receiver();
+    
     let backlight_input = embassy_rp::gpio::Input::new(r.backlight_sensor.bl_pin, embassy_rp::gpio::Pull::None);
     
     spawner.spawn(gauge_task(r.gauge)).expect("failed to spawn elm uart task");
@@ -145,36 +149,37 @@ async fn main(spawner: embassy_executor::Spawner) {
             lcd_sender.send(ToLcdEvents::IsBackLightOn(is_backlight_on)).await;
             gauge_sender.send(ToGaugeEvents::IsBackLightOn(is_backlight_on)).await;
         }
+        
 
         match event{
             ToMainEvents::GaugeInitComplete => {
-                info!("Gauge initialized");
+                defmt::info!("Gauge initialized");
                 is_gauge_init = true;
                 gauge_sender.send(ToGaugeEvents::IsBackLightOn(is_backlight_on)).await;
             }
             ToMainEvents::GaugeError(e) => {
-                warn!("Gauge error: {:?}", e);
+                defmt::warn!("Gauge error: {:?}", e);
                 error_fifo.add(e);
             }
             ToMainEvents::LcdInitComplete => {
-                info!("LCD initialized");
+                defmt::info!("LCD initialized");
                 is_lcd_init = true;
                 lcd_sender.send(ToLcdEvents::IsBackLightOn(is_backlight_on)).await;
                 lcd_sender.send(ToLcdEvents::Error(None)).await;
             }
             ToMainEvents::LcdError(e) => {
-                warn!("LCD error: {:?}", e);
+                defmt::warn!("LCD error: {:?}", e);
                 error_fifo.add(e);
             }
             ToMainEvents::ElmInitComplete => {
-                info!("Elm initialized");
+                defmt::info!("Elm initialized");
             }
             ToMainEvents::ElmError(e) => {
-                warn!("Elm error: {:?}", e);
+                defmt::warn!("Elm error: {:?}", e);
                 error_fifo.add(e);
             }
             ToMainEvents::ElmDataPoint(d) => {
-                // info!("Elm data point: {:?}", d);
+                // defmt::info!("Elm data point: {:?}", d);
                 let gauge_channel_fifo_length = GAUGE_EVENT_CHANNEL.len();
                 if gauge_channel_fifo_length > 4 {
                     defmt::warn!("Gauge event channel overflow. Length: {}", gauge_channel_fifo_length);

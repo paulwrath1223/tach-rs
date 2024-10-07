@@ -36,7 +36,7 @@ const MAX_SANE_COOL_TEMP: f64 = 220f64; // this is not even possible for the
 
 // Normal meaning no cause for concern
 const MIN_NORMAL_RPM: f64 = -1f64;
-const MAX_NORMAL_RPM: f64 = 10_000f64;
+const MAX_NORMAL_RPM: f64 = 7_000f64;
 const MIN_NORMAL_VBAT: f64 = 10f64;
 const MAX_NORMAL_VBAT: f64 = 16f64;
 const MIN_NORMAL_COOL_TEMP: f64 = -30f64;
@@ -46,7 +46,7 @@ const MAX_NORMAL_COOL_TEMP: f64 = 100f64;
 impl Datum{
     pub fn is_value_sane_check(&self) -> bool{
         match self {
-            Datum::RPM(value) => value.is_finite() && value < &MAX_SANE_RPM && value > &MIN_SANE_RPM,
+            Datum::RPM(value) => is_rpm_sane_check(*value),
             Datum::VBat(value) => value.is_finite() && value < &MAX_SANE_VBAT && value > &MIN_SANE_VBAT,
             Datum::CoolantTempC(value) => value.is_finite() && value < &MAX_SANE_COOL_TEMP && value > &MIN_SANE_COOL_TEMP,
         }
@@ -54,7 +54,7 @@ impl Datum{
     
     pub fn is_value_normal(&self) -> bool {
         match self {
-            Datum::RPM(value) => value.is_finite() && value < &MAX_NORMAL_RPM && value > &MIN_NORMAL_RPM,
+            Datum::RPM(value) => is_rpm_normal_check(*value),
             Datum::VBat(value) => value.is_finite() && value < &MAX_NORMAL_VBAT && value > &MIN_NORMAL_VBAT,
             Datum::CoolantTempC(value) => value.is_finite() && value < &MAX_NORMAL_COOL_TEMP && value > &MIN_NORMAL_COOL_TEMP,
         }
@@ -62,3 +62,10 @@ impl Datum{
 }
 
 
+pub fn is_rpm_sane_check(rpm_val: f64) -> bool{
+    rpm_val.is_finite() && rpm_val < MAX_SANE_RPM && rpm_val > MIN_SANE_RPM
+}
+
+pub fn is_rpm_normal_check(rpm_val: f64) -> bool {
+    rpm_val.is_finite() && rpm_val < MAX_NORMAL_RPM && rpm_val > MIN_NORMAL_RPM
+}
