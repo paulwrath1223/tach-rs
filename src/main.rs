@@ -13,6 +13,7 @@ mod gauge;
 mod pio_stepper;
 mod ws2812;
 mod error_lifetime;
+mod freq_counter;
 
 use embassy_rp::{bind_interrupts};
 use assign_resources::assign_resources;
@@ -89,6 +90,9 @@ assign_resources! { // I hate this macro shit
         mosi: PIN_11,
         clk: PIN_10,
         spi_resource: SPI1,
+    }
+    freak_counter: FreakyResources{ // freak is short for frequency OFC
+        freak_pin: PIN_16,
     }
 }
 
