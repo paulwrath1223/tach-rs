@@ -4,7 +4,6 @@ use fixed::FixedU32;
 use fixed::traits::ToFixed;
 use fixed::types::extra::U8;
 
-// I don't understand anything in this file, taken from the Embassy examples
 
 pub struct PioStepper<'d, T: Instance, const SM: usize> {
     irq: Irq<'d, T, SM>,
