@@ -8,6 +8,9 @@ use crate::errors::ToRustAGaugeError::UnreliableRPM;
 use crate::errors::{ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 use crate::pio_stepper::PioStepper;
 use crate::ws2812::Ws2812;
+
+//TODO: Add a project cfg to swap the stepper motor for a servo
+
 const STEPPER_SM: usize = 0;
 const NUM_LEDS: usize = 24;
 const NUM_LABEL_LEDS: usize = 5;
