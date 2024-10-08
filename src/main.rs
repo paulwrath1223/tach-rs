@@ -9,11 +9,10 @@ mod errors;
 mod display;
 mod byte_parsing;
 mod gauge;
-mod pio_stepper;
 mod ws2812;
 mod error_lifetime;
 mod freq_counter;
-
+mod pio_servo;
 
 
 use embassy_rp::{bind_interrupts};
@@ -74,12 +73,9 @@ assign_resources! { // I hate this macro shit
         bl_pin: PIN_14,
     },
     gauge: GaugePins{
-        stepper_a1_pin: PIN_4,
-        stepper_a2_pin: PIN_5,
-        stepper_b1_pin: PIN_6,
-        stepper_b2_pin: PIN_7,
+        servo_pin: PIN_2,
         neo_pixel: PIN_3,
-        stepper_pio: PIO0,
+        servo_pio: PIO0,
         led_pio: PIO1,
         led_dma: DMA_CH3
     }
@@ -101,7 +97,7 @@ assign_resources! { // I hate this macro shit
 
 bind_interrupts!(struct Irqs {
     UART0_IRQ => embassy_rp::uart::InterruptHandler<peripherals::UART0>;
-    PIO0_IRQ_0 => embassy_rp::pio::InterruptHandler<peripherals::PIO0>; // stepper
+    PIO0_IRQ_0 => embassy_rp::pio::InterruptHandler<peripherals::PIO0>; // servo
     PIO1_IRQ_0 => embassy_rp::pio::InterruptHandler<peripherals::PIO1>; // ws2812
 });
 

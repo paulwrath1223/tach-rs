@@ -1,17 +1,17 @@
+
 use embassy_futures::join::join;
 use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio::Pio;
 use smart_leds::RGB8;
 use crate::{GaugePins, Irqs, ToGaugeEvents, ToLcdEvents, ToMainEvents, GAUGE_EVENT_CHANNEL, INCOMING_EVENT_CHANNEL};
 use crate::data_point::{DataPoint, Datum};
-use crate::errors::ToRustAGaugeError::UnreliableRPM;
 use crate::errors::{ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
-use crate::pio_stepper::PioStepper;
+use crate::pio_servo::{PwmPio, ServoBuilder, ServoDegrees};
 use crate::ws2812::Ws2812;
 
-//TODO: Add a project cfg to swap the stepper motor for a servo
 
-const STEPPER_SM: usize = 0;
+// this file uses both `embassy_time::Duration` and `core::time::Duration`. Be careful
+
 const NUM_LEDS: usize = 24;
 const NUM_LABEL_LEDS: usize = 5;
 const LED_ZERO_OFFSET: usize = 9;
@@ -21,12 +21,16 @@ const BLACK: RGB8 = RGB8 { r: 0, g: 0, b: 0 };
 const BACKLIGHT_BRIGHT_BRIGHTNESS_MULTIPLIER: f32 = 1.0;
 const BACKLIGHT_DIM_BRIGHTNESS_MULTIPLIER: f32 = 0.5;
 
-const STEPPER_MAX_STEPS: u32 = 135;
+/// Wait at least this long between updates to servo and LEDs. This is done because the servo signal
+/// has a 20ms period, and only one 'command' can be sent during that time
+const MIN_UPDATE_DELAY: embassy_time::Duration = embassy_time::Duration::from_millis(20);
+
+
 #[embassy_executor::task]
 pub async fn gauge_task(r: GaugePins) {
     let receiver = GAUGE_EVENT_CHANNEL.receiver();
     let sender = INCOMING_EVENT_CHANNEL.sender();
-
+    
     let Pio { mut common, sm0, .. } = Pio::new(r.led_pio, Irqs);
 
     // This is the number of leds in the string. Helpfully, the sparkfun thing plus and adafruit
@@ -38,38 +42,31 @@ pub async fn gauge_task(r: GaugePins) {
     // Thing plus: 8
     // Adafruit Feather: 16;  Adafruit Feather+RFM95: 4
     let mut ws2812: Ws2812<embassy_rp::peripherals::PIO1, 0, NUM_LEDS> = Ws2812::new(&mut common, sm0, r.led_dma, r.neo_pixel);
-    
-    let Pio {
-        mut common, irq0, sm0, ..
-    } = Pio::new(r.stepper_pio, Irqs);
-    
-    let mut pio_stepper = PioStepper::new(
-        &mut common,
-        sm0,
-        irq0,
-        r.stepper_a1_pin,
-        r.stepper_a2_pin,
-        r.stepper_b1_pin,
-        r.stepper_b2_pin,
-        STEPPER_MAX_STEPS
-    );
-    pio_stepper.set_frequency(128);
 
+    let Pio { mut common, sm0, .. } = Pio::new(r.servo_pio, Irqs);
 
-    pio_stepper.calibrate().await;
+    let pwm_pio = PwmPio::new(&mut common, sm0, r.servo_pin);
+    let mut servo = ServoBuilder::new(pwm_pio)
+        .set_max_degree_rotation(270.0)
+        .set_min_pulse_width(core::time::Duration::from_micros(500))
+        .set_max_pulse_width(core::time::Duration::from_micros(2500))
+        .build();
+
+    servo.start();
     
     sender.send(ToMainEvents::GaugeInitComplete).await;
     
     let mut is_backlight_on = false;
-    
+    let mut ticker = embassy_time::Ticker::every(MIN_UPDATE_DELAY);
     loop {
+        ticker.next().await;
         match receiver.receive().await {
             ToGaugeEvents::NewData(data) => {
                 match data.data {
                     Datum::RPM(rpm) => {
                         do_backlight(&mut neo_p_data, rpm, is_backlight_on);
                         ws2812.write(&neo_p_data).await;
-                        pio_stepper.set_position_from_val(rpm).await;
+                        servo.rotate(rpm_to_servo_degrees(rpm))
                     }
                     _ => {defmt::error!("Gauge received data point containing data that isn't RPM. Ignoring")}
                 }
@@ -125,4 +122,13 @@ fn dim_color_by_factor(color: RGB8, factor: f32) -> RGB8 {
         g: (color.g as f32 * factor).clamp(0.0, 255.0) as u8,
         b: (color.b as f32 * factor).clamp(0.0, 255.0) as u8,
     }
+}
+
+fn rpm_to_servo_degrees(rpm: f64) -> ServoDegrees{
+    const MAX_RPM: f64 = 9000.0;
+    const MAX_DEGREES: f64 = 270.0;
+    
+    const FACTOR: f64 = MAX_DEGREES/MAX_RPM;
+    
+    rpm * FACTOR
 }
