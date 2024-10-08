@@ -43,6 +43,8 @@ pub enum ToRustAGaugeError {
     StrangeCoolant(),
     #[error("Response from ELM was 'NO DATA\\r\\r'")]
     UartResponseNoData(),
+    #[error("ELM returned an RPM value that differs from the measured value by at least 500")]
+    RpmSourceDiscrepancy(),
 }
 
 const NONDESCRIPT_ERROR_STR: &'static str =           "non-descr- \nipt error! \n   :(      \n   :(      ";
@@ -62,6 +64,7 @@ const STRANGE_RPM: &'static str =                     "Weird RPM  \ndata! Maybe\
 const STRANGE_VBAT: &'static str =                    "Weird VBAT \ndata! Maybe\nreal but   \nProblematic";
 const STRANGE_COOLANT: &'static str =                 "Weird Temp \ndata! Maybe\nreal but   \nProblematic";
 const UART_RESPONSE_NO_DATA: &'static str =           "UART NoData\nECU 2 slow!\nExpected on\nstart up.  ";
+const RPM_SOURCE_DISCREPANCY: &'static str =          "Measured   \nRPM differs\nfrom ECU   \nval by >500";
 
 
 impl ToRustAGaugeError{
@@ -85,6 +88,7 @@ impl ToRustAGaugeError{
             ToRustAGaugeError::StrangeVBAT() => { STRANGE_VBAT }
             ToRustAGaugeError::StrangeCoolant() => { STRANGE_COOLANT }
             ToRustAGaugeError::UartResponseNoData() => { UART_RESPONSE_NO_DATA }
+            ToRustAGaugeError::RpmSourceDiscrepancy() => { RPM_SOURCE_DISCREPANCY }
         }
     }
 }
