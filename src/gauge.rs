@@ -107,10 +107,10 @@ fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: 
     } else {
         BACKLIGHT_DIM_BRIGHTNESS_MULTIPLIER
     };
-    for i in 0..INITIAL_INDICATOR_START_INDEX {
+    for i in 0..NUMERICAL_BACLIGHT_START_INDEX {
         neo_p_data[i] = BLACK;
     }
-    for i in INITIAL_INDICATOR_START_INDEX..NUMERICAL_BACLIGHT_START_INDEX {
+    for i in NUMERICAL_BACLIGHT_START_INDEX..NEEDLE_BACKLIGHT_START_INDEX {
         let indicator_index = i-INITIAL_INDICATOR_START_INDEX;
         if i <= rpm_index_in_indicator_leds{
             neo_p_data[i] = dim_color_by_factor(wheel(((indicator_index*10)%256) as u8), dim_factor);
@@ -119,10 +119,10 @@ fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: 
         }
 
     }
-    for i in NUMERICAL_BACLIGHT_START_INDEX..NEEDLE_BACKLIGHT_START_INDEX {
+    for i in NEEDLE_BACKLIGHT_START_INDEX..FINAL_INDICATOR_START_INDEX {
         neo_p_data[i] = dim_color_by_factor(WHITE, dim_factor);
     }
-    for i in NEEDLE_BACKLIGHT_START_INDEX..FINAL_INDICATOR_START_INDEX {
+    for i in FINAL_INDICATOR_START_INDEX..NUM_LEDS {
         neo_p_data[i] = BLACK;
     }
 }
