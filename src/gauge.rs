@@ -23,22 +23,22 @@ const BACKLIGHT_DIM_BRIGHTNESS_MULTIPLIER: f32 = 0.5;
 /// has a 20ms period, and only one 'command' can be sent during that time
 const MIN_UPDATE_DELAY: embassy_time::Duration = embassy_time::Duration::from_millis(20);
 
-/// the maximum RPM value that can be displayed. Higher values will be checked for and handled, 
+/// the maximum RPM value that can be displayed. Higher values will be checked for and handled,
 /// but this value is used for scaling.
-const GAUGE_MAX_RPM: f64 = 9000.0; 
+const GAUGE_MAX_RPM: f64 = 9000.0;
 
 
 #[embassy_executor::task]
 pub async fn gauge_task(r: GaugePins) {
     let receiver = GAUGE_EVENT_CHANNEL.receiver();
     let sender = INCOMING_EVENT_CHANNEL.sender();
-    
+
     let mut neo_p_data: [RGB8; NUM_LEDS] = [BLACK; NUM_LEDS];
-    
+
     let Pio { mut common, sm0, .. } = Pio::new(r.led_pio, Irqs);
     let mut ws2812: Ws2812<embassy_rp::peripherals::PIO1, 0, NUM_LEDS> = Ws2812::new(&mut common, sm0, r.led_dma, r.neo_pixel);
 
-    
+
     let Pio { mut common, sm0, .. } = Pio::new(r.servo_pio, Irqs);
     let pwm_pio = PwmPio::new(&mut common, sm0, r.servo_pin);
     let mut servo = ServoBuilder::new(pwm_pio)
@@ -90,17 +90,17 @@ fn wheel(mut wheel_pos: u8) -> RGB8 {
 
 
 fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: bool){
-    
+
     const INITIAL_INDICATOR_START_INDEX: usize = 0;
     const NUMERICAL_BACLIGHT_START_INDEX: usize = 4;
     const NEEDLE_BACKLIGHT_START_INDEX: usize = 29;
     const FINAL_INDICATOR_START_INDEX: usize = 31;
-    
+
     const NUM_IND_LEDS: f64 = NEEDLE_BACKLIGHT_START_INDEX as f64 - NUMERICAL_BACLIGHT_START_INDEX as f64;
 
     let rpm_index_in_indicator_leds: usize = (NUM_IND_LEDS * value / GAUGE_MAX_RPM)
         .clamp(0.0, NUM_IND_LEDS) as usize;
-    
+
     
     let dim_factor: f32 = if is_backlight_on {
         BACKLIGHT_BRIGHT_BRIGHTNESS_MULTIPLIER
@@ -117,7 +117,7 @@ fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: 
         } else {
             neo_p_data[i] = BLACK;
         }
-        
+
     }
     for i in NUMERICAL_BACLIGHT_START_INDEX..NEEDLE_BACKLIGHT_START_INDEX {
         neo_p_data[i] = dim_color_by_factor(WHITE, dim_factor);
