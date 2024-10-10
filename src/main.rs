@@ -185,6 +185,10 @@ async fn main(spawner: embassy_executor::Spawner) {
                 defmt::info!("Gauge initialized");
                 is_gauge_init = true;
                 gauge_sender.send(ToGaugeEvents::IsBackLightOn(is_backlight_on)).await;
+                gauge_sender.send(ToGaugeEvents::NewData(DataPoint{
+                    data: Datum::RPM(0.0),
+                    time: embassy_time::Instant::now(),
+                })).await;
             }
             Ok(ToMainEvents::GaugeError(e)) => {
                 defmt::warn!("Gauge error: {:?}", e);
