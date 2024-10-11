@@ -91,14 +91,14 @@ fn wheel(mut wheel_pos: u8) -> RGB8 {
 
 fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: bool){
 
-    const INITIAL_INDICATOR_START_INDEX: usize = 0;
+
     const NUMERICAL_BACK_LIGHT_START_INDEX: usize = 4;
     const NEEDLE_BACKLIGHT_START_INDEX: usize = 29;
     const FINAL_INDICATOR_START_INDEX: usize = 31;
 
     const NUM_IND_LEDS: f64 = NEEDLE_BACKLIGHT_START_INDEX as f64 - NUMERICAL_BACK_LIGHT_START_INDEX as f64;
 
-    let rpm_index_in_indicator_leds: usize = (NUM_IND_LEDS * value / GAUGE_MAX_RPM)
+    let rpm_index_in_indicator_leds: usize = ((NUM_IND_LEDS * value) / GAUGE_MAX_RPM)
         .clamp(0.0, NUM_IND_LEDS) as usize;
 
     
@@ -111,8 +111,8 @@ fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: 
         neo_p_data[i] = BLACK;
     }
     for i in NUMERICAL_BACK_LIGHT_START_INDEX..NEEDLE_BACKLIGHT_START_INDEX {
-        let indicator_index = i-INITIAL_INDICATOR_START_INDEX;
-        if i <= rpm_index_in_indicator_leds{
+        let indicator_index = i-NUMERICAL_BACK_LIGHT_START_INDEX;
+        if indicator_index <= rpm_index_in_indicator_leds{
             neo_p_data[i] = dim_color_by_factor(wheel(((indicator_index*10)%256) as u8), dim_factor);
         } else {
             neo_p_data[i] = BLACK;
@@ -138,6 +138,6 @@ fn rpm_to_servo_degrees(rpm: f64) -> ServoDegrees{
     const MAX_DEGREES: f64 = 270.0;
     
     const FACTOR: f64 = MAX_DEGREES/GAUGE_MAX_RPM;
-    
-    rpm * FACTOR
+
+    MAX_DEGREES - (rpm * FACTOR)
 }
