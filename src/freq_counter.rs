@@ -30,7 +30,7 @@ pub async fn freq_counter_task(r: FreakyResources) {
         
         let elapsed_time_s = start_time.elapsed().as_ticks() as f64 / embassy_time::TICK_HZ as f64;
         
-        send_rpm((pulses as f64 * 60.0)/(elapsed_time_s * RPM_PULSES_PER_REV)).await;
+        send_rpm((pulses as f64 * 3.0 * 60.0)/(elapsed_time_s * RPM_PULSES_PER_REV)).await;
     }
 }
 
