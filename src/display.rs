@@ -83,7 +83,7 @@ pub async fn display_task(r: DisplayPins) {
     // display interface abstraction from SPI and DC
     let di = SPIInterface::new(display_spi, dcx);
 
-    let display_orientation = Orientation::new().rotate(mipidsi::options::Rotation::Deg90);
+    let display_orientation = Orientation::new().rotate(mipidsi::options::Rotation::Deg270);
     
     let mut display = mipidsi::Builder::new(ST7789, di)
         .reset_pin(rst)
