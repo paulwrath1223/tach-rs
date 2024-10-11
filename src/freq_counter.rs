@@ -1,7 +1,7 @@
 // when you read the name of the file in your head, it is imperative that you think of it as 'freak' counter
 
 use embassy_rp::gpio::Pull;
-use crate::{FreakyResources, RPM_FREQ_CHANNEL};
+use crate::{FreakyResources, ToMainEvents, INCOMING_EVENT_CHANNEL};
 use embassy_rp::pwm;
 use embassy_rp::pwm::InputMode;
 
@@ -34,5 +34,5 @@ pub async fn freq_counter_task(r: FreakyResources) {
 
 async fn send_rpm(rpm_val: f64){
     defmt::info!("Sending rpm val: {}", rpm_val);
-    RPM_FREQ_CHANNEL.send(rpm_val).await;
+    INCOMING_EVENT_CHANNEL.send(ToMainEvents::FreqCountedRpm(rpm_val)).await;
 }

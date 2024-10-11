@@ -44,6 +44,7 @@ pub enum ToMainEvents {
     ElmInitComplete,
     ElmError(errors::ToRustAGaugeErrorWithSeverity),
     ElmDataPoint(data_point::DataPoint),
+    FreqCountedRpm(f64)
 }
 
 pub static LCD_EVENT_CHANNEL: Channel<CriticalSectionRawMutex, ToLcdEvents, 10> = Channel::new();
@@ -60,7 +61,6 @@ pub enum ToGaugeEvents {
     IsBackLightOn(bool),
 }
 
-pub static RPM_FREQ_CHANNEL: Channel<CriticalSectionRawMutex, f64, 1> = Channel::new();
 
 assign_resources! { // I hate this macro shit
     elm_uart: ElmUart{
@@ -115,8 +115,6 @@ async fn main(spawner: embassy_executor::Spawner) {
     
     let receiver = INCOMING_EVENT_CHANNEL.receiver();
     
-    let freq_counter_receiver = RPM_FREQ_CHANNEL.receiver();
-    
     let backlight_input = embassy_rp::gpio::Input::new(r.backlight_sensor.bl_pin, embassy_rp::gpio::Pull::None);
     
     spawner.spawn(gauge_task(r.gauge)).expect("failed to spawn elm uart task");
@@ -150,41 +148,9 @@ async fn main(spawner: embassy_executor::Spawner) {
             gauge_sender.send(ToGaugeEvents::IsBackLightOn(is_backlight_on)).await;
         }
         
-        match freq_counter_receiver.try_receive(){
-            Ok(rpm) => {
-                freq_counted_rpm = rpm;
-                let gauge_channel_fifo_length = GAUGE_EVENT_CHANNEL.len();
-                if gauge_channel_fifo_length > 2 {
-                    defmt::warn!("Gauge event channel overflow, skipping. Length: {}", gauge_channel_fifo_length);
-                } else {
-                    if !data_point::is_rpm_sane_check(rpm){
-                        defmt::warn!("Insane RPM value: {}, ignoring", rpm);
-                        error_fifo.add(ToRustAGaugeErrorWithSeverity{
-                            error: ToRustAGaugeError::UnreliableRPM(),
-                            severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
-                        });
-                    } else {
-                        if !data_point::is_rpm_normal_check(rpm){
-                            defmt::warn!("Received value of dubious validity: {}", rpm);
-                            error_fifo.add(ToRustAGaugeErrorWithSeverity{
-                                error: ToRustAGaugeError::StrangeRPM(),
-                                severity: ToRustAGaugeErrorSeverity::MaybeRecoverable,
-                            });
-                        }
-                        if is_gauge_init {
-                            gauge_sender.send(ToGaugeEvents::NewData(DataPoint{
-                                data: Datum::RPM(rpm),
-                                time: embassy_time::Instant::now(),
-                            })).await;
-                        }
-                    }
-                }
-            }
-            Err(_) => {}
-        }
 
-        match receiver.try_receive(){
-            Ok(ToMainEvents::GaugeInitComplete) => {
+        match receiver.receive().await{
+            ToMainEvents::GaugeInitComplete => {
                 defmt::info!("Gauge initialized");
                 is_gauge_init = true;
                 gauge_sender.send(ToGaugeEvents::IsBackLightOn(is_backlight_on)).await;
@@ -193,28 +159,28 @@ async fn main(spawner: embassy_executor::Spawner) {
                     time: embassy_time::Instant::now(),
                 })).await;
             }
-            Ok(ToMainEvents::GaugeError(e)) => {
+            ToMainEvents::GaugeError(e) => {
                 defmt::warn!("Gauge error: {:?}", e);
                 error_fifo.add(e);
             }
-            Ok(ToMainEvents::LcdInitComplete) => {
+            ToMainEvents::LcdInitComplete => {
                 defmt::info!("LCD initialized");
                 is_lcd_init = true;
                 lcd_sender.send(ToLcdEvents::IsBackLightOn(is_backlight_on)).await;
                 lcd_sender.send(ToLcdEvents::Error(None)).await;
             }
-            Ok(ToMainEvents::LcdError(e)) => {
+            ToMainEvents::LcdError(e) => {
                 defmt::warn!("LCD error: {:?}", e);
                 error_fifo.add(e);
             }
-            Ok(ToMainEvents::ElmInitComplete) => {
+            ToMainEvents::ElmInitComplete => {
                 defmt::info!("Elm initialized");
             }
-            Ok(ToMainEvents::ElmError(e)) => {
+            ToMainEvents::ElmError(e) => {
                 defmt::warn!("Elm error: {:?}", e);
                 error_fifo.add(e);
             }
-            Ok(ToMainEvents::ElmDataPoint(d)) => {
+            ToMainEvents::ElmDataPoint(d) => {
                 // defmt::info!("Elm data point: {:?}", d);
                 
                 match d.data{
@@ -269,7 +235,35 @@ async fn main(spawner: embassy_executor::Spawner) {
                     }
                 }
             }
-            Err(_) => {}
+            ToMainEvents::FreqCountedRpm(rpm) => {
+                freq_counted_rpm = rpm;
+                let gauge_channel_fifo_length = GAUGE_EVENT_CHANNEL.len();
+                if gauge_channel_fifo_length > 2 {
+                    defmt::warn!("Gauge event channel overflow, skipping. Length: {}", gauge_channel_fifo_length);
+                } else {
+                    if !data_point::is_rpm_sane_check(rpm){
+                        defmt::warn!("Insane RPM value: {}, ignoring", rpm);
+                        error_fifo.add(ToRustAGaugeErrorWithSeverity{
+                            error: ToRustAGaugeError::UnreliableRPM(),
+                            severity: ToRustAGaugeErrorSeverity::LossOfSomeFunctionality,
+                        });
+                    } else {
+                        if !data_point::is_rpm_normal_check(rpm){
+                            defmt::warn!("Received value of dubious validity: {}", rpm);
+                            error_fifo.add(ToRustAGaugeErrorWithSeverity{
+                                error: ToRustAGaugeError::StrangeRPM(),
+                                severity: ToRustAGaugeErrorSeverity::MaybeRecoverable,
+                            });
+                        }
+                        if is_gauge_init {
+                            gauge_sender.send(ToGaugeEvents::NewData(DataPoint{
+                                data: Datum::RPM(rpm),
+                                time: embassy_time::Instant::now(),
+                            })).await;
+                        }
+                    }
+                }
+            }
         }
     }
 }
