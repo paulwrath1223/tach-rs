@@ -92,7 +92,8 @@ assign_resources! { // I hate this macro shit
         spi_resource: SPI1,
     }
     freak_counter: FreakyResources{ // freak is short for frequency OFC
-        freak_pin: PIN_16,
+        freak_pin: PIN_17,
+        freak_slice: PWM_SLICE0
     }
 }
 
