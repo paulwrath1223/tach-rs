@@ -32,6 +32,7 @@ embassy-sync = { version = "0.6.0", features = ["defmt"] }#, path = "embassy_loc
 embassy-executor = { version = "0.6.0", features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt", "integrated-timers"] }#, path = "embassy_local_libs/embassy-executor"
 embassy-time = { version = "0.3.2", features = ["defmt", "defmt-timestamp-uptime", "tick-hz-100_000_000"] }#, path = "embassy_local_libs/embassy-time"
 embassy-rp = { version = "0.2.0", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl"] }#, path = "embassy_local_libs/embassy-rp", "rp2040"
+embassy-time-driver = { version = "0.1.0", default-features = false }
 #embassy-usb = { version = "0.3.0", features = ["defmt"] }#, path = "embassy_local_libs/embassy-usb"
 #embassy-net = { version = "0.4.0", features = ["defmt", "tcp", "udp", "raw", "dhcpv4", "medium-ethernet", "dns"] }#, path = "embassy_local_libs/embassy-net"
 embassy-net-wiznet = { version = "0.1.0", features = ["defmt"] }#, path = "embassy_local_libs/embassy-net-wiznet"
