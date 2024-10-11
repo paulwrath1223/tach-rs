@@ -31,8 +31,8 @@ use crate::error_lifetime::ErrorFifo;
 use crate::errors::{ToRustAGaugeError, ToRustAGaugeErrorSeverity, ToRustAGaugeErrorWithSeverity};
 use crate::freq_counter::freq_counter_task;
 
-const ERROR_CHECKING_INTERVAL: embassy_time::Duration = embassy_time::Duration::from_millis(1000); // error checking will wait at least this long, maybe more
-
+/// error checking will wait at least this long, maybe more
+const ERROR_CHECKING_INTERVAL: embassy_time::Duration = embassy_time::Duration::from_millis(1000);
 
 pub static INCOMING_EVENT_CHANNEL: Channel<CriticalSectionRawMutex, ToMainEvents, 10> = Channel::new();
 
@@ -122,7 +122,7 @@ async fn main(spawner: embassy_executor::Spawner) {
     spawner.spawn(elm_uart_task(r.elm_uart)).expect("failed to spawn elm uart task");
     spawner.spawn(display_task(r.display)).expect("failed to spawn display task");
     spawner.spawn(freq_counter_task(r.freak_counter)).expect("failed to spawn freaky task");
-    
+
     let lcd_sender = LCD_EVENT_CHANNEL.sender();
     let gauge_sender = GAUGE_EVENT_CHANNEL.sender();
 
