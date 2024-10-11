@@ -92,11 +92,11 @@ fn wheel(mut wheel_pos: u8) -> RGB8 {
 fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: bool){
 
     const INITIAL_INDICATOR_START_INDEX: usize = 0;
-    const NUMERICAL_BACLIGHT_START_INDEX: usize = 4;
+    const NUMERICAL_BACK_LIGHT_START_INDEX: usize = 4;
     const NEEDLE_BACKLIGHT_START_INDEX: usize = 29;
     const FINAL_INDICATOR_START_INDEX: usize = 31;
 
-    const NUM_IND_LEDS: f64 = NEEDLE_BACKLIGHT_START_INDEX as f64 - NUMERICAL_BACLIGHT_START_INDEX as f64;
+    const NUM_IND_LEDS: f64 = NEEDLE_BACKLIGHT_START_INDEX as f64 - NUMERICAL_BACK_LIGHT_START_INDEX as f64;
 
     let rpm_index_in_indicator_leds: usize = (NUM_IND_LEDS * value / GAUGE_MAX_RPM)
         .clamp(0.0, NUM_IND_LEDS) as usize;
@@ -107,17 +107,16 @@ fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: 
     } else {
         BACKLIGHT_DIM_BRIGHTNESS_MULTIPLIER
     };
-    for i in 0..NUMERICAL_BACLIGHT_START_INDEX {
+    for i in 0..NUMERICAL_BACK_LIGHT_START_INDEX {
         neo_p_data[i] = BLACK;
     }
-    for i in NUMERICAL_BACLIGHT_START_INDEX..NEEDLE_BACKLIGHT_START_INDEX {
+    for i in NUMERICAL_BACK_LIGHT_START_INDEX..NEEDLE_BACKLIGHT_START_INDEX {
         let indicator_index = i-INITIAL_INDICATOR_START_INDEX;
         if i <= rpm_index_in_indicator_leds{
             neo_p_data[i] = dim_color_by_factor(wheel(((indicator_index*10)%256) as u8), dim_factor);
         } else {
             neo_p_data[i] = BLACK;
         }
-
     }
     for i in NEEDLE_BACKLIGHT_START_INDEX..FINAL_INDICATOR_START_INDEX {
         neo_p_data[i] = dim_color_by_factor(WHITE, dim_factor);

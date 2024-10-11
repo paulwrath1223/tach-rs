@@ -44,5 +44,5 @@ async fn measure_rpm(rpm_in: &mut embassy_rp::gpio::Input<'static>) -> f64{
         }
     }
     let elapsed_seconds = start_time.elapsed().as_micros() as f64 / 1_000_000.0;
-    60.0/elapsed_seconds
+    1.0/elapsed_seconds*60.0
 }
