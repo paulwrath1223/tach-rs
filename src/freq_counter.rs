@@ -15,11 +15,16 @@ const RPM_SIG_TIMEOUT_DURATION_MS: embassy_time::Duration = embassy_time::Durati
 // If `RPM_SIG_TIMEOUT_DURATION_MS` were set to 5ms for example, the alg will measure erroneously 
 // low values when the real rpm goes below 500 rpm
 
+
+const MIN_DELAY_BETWEEN_UPDATES: embassy_time::Duration = embassy_time::Duration::from_millis(40);
+
 #[embassy_executor::task]
 pub async fn freq_counter_task(r: FreakyResources) {
     let rpm_pin = r.freak_pin;
     let mut rpm_in = embassy_rp::gpio::Input::new(rpm_pin, embassy_rp::gpio::Pull::None);
+    let mut update_ticker = embassy_time::Ticker::every(MIN_DELAY_BETWEEN_UPDATES);
     loop{
+        update_ticker.next().await;
         send_rpm(measure_rpm(&mut rpm_in).await).await;
     }
 }
@@ -36,6 +41,7 @@ async fn measure_rpm(rpm_in: &mut embassy_rp::gpio::Input<'static>) -> f64{
     while sig_index < RPM_PULSES_PER_REV{
         match rpm_in.wait_for_rising_edge().with_timeout(RPM_SIG_TIMEOUT_DURATION_MS).await {
             Ok(_) => {
+                defmt::info!("Found rising edge");
                 sig_index+=1;
             }
             Err(_) => {
