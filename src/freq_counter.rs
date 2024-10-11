@@ -9,11 +9,10 @@ use embedded_hal_1::delay::DelayNs;
 /// the number of pulses that the RPM signal undergoes in a full rotation of the driveshaft
 const RPM_PULSES_PER_REV: f64 = 26f64;
 
-const PULSE_MEASURE_WINDOW_uS: u64 = 100_000;
+const PULSE_MEASURE_WINDOW_US: u64 = 100_000;
 
-const MIN_DELAY_BETWEEN_UPDATES: embassy_time::Duration = embassy_time::Duration::from_micros(PULSE_MEASURE_WINDOW_uS);
+const MIN_DELAY_BETWEEN_UPDATES: embassy_time::Duration = embassy_time::Duration::from_micros(PULSE_MEASURE_WINDOW_US);
 
-const PULSE_MEASURE_WINDOW_S: f64 = PULSE_MEASURE_WINDOW_uS as f64 / 1_000_000.0;
 
 #[embassy_executor::task]
 pub async fn freq_counter_task(r: FreakyResources) {
@@ -22,16 +21,16 @@ pub async fn freq_counter_task(r: FreakyResources) {
     let mut start_time: embassy_time::Instant;
     let mut update_ticker = embassy_time::Ticker::every(MIN_DELAY_BETWEEN_UPDATES);
     let mut pulses: u16;
-    loop{
+    loop {
         start_time = embassy_time::Instant::now();
         pwm.set_counter(0);
-
+        
         update_ticker.next().await;
         pulses = pwm.counter();
-
+        
         let elapsed_time_s = start_time.elapsed().as_ticks() as f64 / embassy_time::TICK_HZ as f64;
         
-        send_rpm(((pulses as f64/RPM_PULSES_PER_REV)/elapsed_time_s)*200.0).await;
+        send_rpm((pulses as f64 * 60.0)/(elapsed_time_s * RPM_PULSES_PER_REV)).await;
     }
 }
 
