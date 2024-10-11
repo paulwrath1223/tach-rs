@@ -29,7 +29,7 @@ pub async fn freq_counter_task(r: FreakyResources) {
         update_ticker.next().await;
         pulses = pwm.counter();
 
-        let elapsed_time_s = start_time.elapsed().as_ticks() as f64 / 100_000_000.0;
+        let elapsed_time_s = start_time.elapsed().as_ticks() as f64 / embassy_time::TICK_HZ as f64;
         
         send_rpm(((pulses as f64/RPM_PULSES_PER_REV)/elapsed_time_s)*200.0).await;
     }
