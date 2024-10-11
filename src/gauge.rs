@@ -21,7 +21,7 @@ const BACKLIGHT_DIM_BRIGHTNESS_MULTIPLIER: f32 = 0.5;
 
 /// Wait at least this long between updates to servo and LEDs. This is done because the servo signal
 /// has a 20ms period, and only one 'command' can be sent during that time
-const MIN_UPDATE_DELAY: embassy_time::Duration = embassy_time::Duration::from_millis(20);
+const MIN_UPDATE_DELAY: embassy_time::Duration = embassy_time::Duration::from_millis(50);
 
 /// the maximum RPM value that can be displayed. Higher values will be checked for and handled,
 /// but this value is used for scaling.
