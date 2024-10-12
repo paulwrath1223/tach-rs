@@ -4,7 +4,6 @@ use embassy_rp::gpio::Pull;
 use crate::{FreakyResources, ToMainEvents, INCOMING_EVENT_CHANNEL};
 use embassy_rp::pwm;
 use embassy_rp::pwm::InputMode;
-use embedded_hal_1::delay::DelayNs;
 
 /// the number of pulses that the RPM signal undergoes in a full rotation of the driveshaft
 const RPM_PULSES_PER_REV: f64 = 26f64;
@@ -13,7 +12,7 @@ const PULSE_MEASURE_WINDOW_US: u64 = 100_000;
 
 const MIN_DELAY_BETWEEN_UPDATES: embassy_time::Duration = embassy_time::Duration::from_micros(PULSE_MEASURE_WINDOW_US);
 
-const RPM_HISTORY_LEN: usize = 3;
+const RPM_HISTORY_LEN: usize = 2;
 
 
 #[embassy_executor::task]

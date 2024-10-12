@@ -61,6 +61,7 @@ pub enum ToGaugeEvents {
     IsBackLightOn(bool),
 }
 
+const RPM_SOURCE_DISCREPANCY_THRESHOLD: f64 = 1000.0f64;
 
 assign_resources! { // I hate this macro shit
     elm_uart: ElmUart{
@@ -185,8 +186,8 @@ async fn main(spawner: embassy_executor::Spawner) {
                 
                 match d.data{
                     Datum::RPM(rpm) => {
-                        if abs(rpm - freq_counted_rpm) > 500.0f64{
-                            defmt::warn!("Ecu rpm value ({}) differs from measured ({}) by a significant margin", rpm, freq_counted_rpm);
+                        if abs(rpm - freq_counted_rpm) > RPM_SOURCE_DISCREPANCY_THRESHOLD{
+                            defmt::warn!("Ecu rpm value ({}) differs from measured ({}) by at least {}", rpm, freq_counted_rpm, RPM_SOURCE_DISCREPANCY_THRESHOLD);
                             error_fifo.add(ToRustAGaugeErrorWithSeverity{
                                 error: ToRustAGaugeError::RpmSourceDiscrepancy(),
                                 severity: ToRustAGaugeErrorSeverity::BadIfReoccurring,
