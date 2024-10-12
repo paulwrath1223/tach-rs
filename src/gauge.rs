@@ -97,9 +97,13 @@ fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: 
     const FINAL_INDICATOR_START_INDEX: usize = 31;
 
     const NUM_IND_LEDS: f64 = NEEDLE_BACKLIGHT_START_INDEX as f64 - NUMERICAL_BACK_LIGHT_START_INDEX as f64;
+    
+    let scaled_rpm: f64 = ((NUM_IND_LEDS * value) / GAUGE_MAX_RPM)
+        .clamp(0.0, NUM_IND_LEDS);
 
-    let rpm_index_in_indicator_leds: usize = ((NUM_IND_LEDS * value) / GAUGE_MAX_RPM)
-        .clamp(0.0, NUM_IND_LEDS) as usize;
+    let rpm_index_in_indicator_leds: usize = scaled_rpm as usize;
+    let scaled_rpm_fractional_component: f64 = scaled_rpm % 1.0;
+    
 
     
     let dim_factor: f32 = if is_backlight_on {
@@ -112,8 +116,11 @@ fn do_backlight(neo_p_data: &mut [RGB8; NUM_LEDS], value: f64, is_backlight_on: 
     }
     for i in NUMERICAL_BACK_LIGHT_START_INDEX..NEEDLE_BACKLIGHT_START_INDEX {
         let indicator_index = i-NUMERICAL_BACK_LIGHT_START_INDEX;
-        if indicator_index <= rpm_index_in_indicator_leds{
-            neo_p_data[i] = dim_color_by_factor(wheel(((indicator_index*10)%256) as u8), dim_factor);
+        let color = wheel(((indicator_index*10)%256) as u8);
+        if indicator_index < rpm_index_in_indicator_leds{
+            neo_p_data[i] = dim_color_by_factor(color, dim_factor);
+        } else if indicator_index == rpm_index_in_indicator_leds{
+            neo_p_data[i] = dim_color_by_factor(color, scaled_rpm_fractional_component as f32);
         } else {
             neo_p_data[i] = BLACK;
         }
