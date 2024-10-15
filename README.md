@@ -1,4 +1,4 @@
- ## Nothing works yet!!!!
+ ## Mostly working, now polishing code before writing README
 
 These commits are just me saving work so I can continue on a different machine while I get a working program.
 
