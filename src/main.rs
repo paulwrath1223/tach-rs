@@ -34,6 +34,8 @@ use crate::freq_counter::freq_counter_task;
 /// error checking will wait at least this long, maybe more
 const ERROR_CHECKING_INTERVAL: embassy_time::Duration = embassy_time::Duration::from_millis(1000);
 
+const CONSECUTIVE_RPM_DISCREPANCIES_COUNT_THRESHOLD: u8 = 4;
+
 pub static INCOMING_EVENT_CHANNEL: Channel<CriticalSectionRawMutex, ToMainEvents, 10> = Channel::new();
 
 pub enum ToMainEvents {
@@ -114,6 +116,8 @@ async fn main(spawner: embassy_executor::Spawner) {
     
     let mut is_backlight_on = true;
     
+    let mut consecutive_rpm_discrepancies: u8 = 0;
+    
     let receiver = INCOMING_EVENT_CHANNEL.receiver();
     
     let backlight_input = embassy_rp::gpio::Input::new(r.backlight_sensor.bl_pin, embassy_rp::gpio::Pull::None);
@@ -187,11 +191,17 @@ async fn main(spawner: embassy_executor::Spawner) {
                 match d.data{
                     Datum::RPM(rpm) => {
                         if abs(rpm - freq_counted_rpm) > RPM_SOURCE_DISCREPANCY_THRESHOLD{
-                            defmt::warn!("Ecu rpm value ({}) differs from measured ({}) by at least {}", rpm, freq_counted_rpm, RPM_SOURCE_DISCREPANCY_THRESHOLD);
-                            error_fifo.add(ToRustAGaugeErrorWithSeverity{
-                                error: ToRustAGaugeError::RpmSourceDiscrepancy(),
-                                severity: ToRustAGaugeErrorSeverity::BadIfReoccurring,
-                            });
+                            consecutive_rpm_discrepancies += 1;
+                            if consecutive_rpm_discrepancies > CONSECUTIVE_RPM_DISCREPANCIES_COUNT_THRESHOLD {
+                                defmt::warn!("Ecu rpm value ({}) differs from measured ({}) by at least {}", rpm, freq_counted_rpm, RPM_SOURCE_DISCREPANCY_THRESHOLD);
+                                error_fifo.add(ToRustAGaugeErrorWithSeverity{
+                                    error: ToRustAGaugeError::RpmSourceDiscrepancy(),
+                                    severity: ToRustAGaugeErrorSeverity::BadIfReoccurring,
+                                });
+                            }
+                            
+                        } else {
+                            consecutive_rpm_discrepancies = 0;
                         }
                     }
                     Datum::VBat(vbat) => {
